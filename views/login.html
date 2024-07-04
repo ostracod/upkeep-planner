@@ -16,6 +16,14 @@
         </tr>
     </table>
 </form>
+<p id="message"></p>
 <p>
     <a href="/createAccount">Create a New Account</a>
 </p>
+{{^hasLoggedIn}}
+<script>
+localStorage.removeItem("keyHash");
+</script>
+{{/hasLoggedIn}}
+
+

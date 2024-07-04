@@ -1,5 +1,5 @@
 
-const formSubmitEvent = async () => {
+const createAccount = async () => {
     const usernameTag = document.getElementById("username");
     const passwordTag = document.getElementById("password");
     const confirmPasswordTag = document.getElementById("confirmPassword");
@@ -53,6 +53,13 @@ const formSubmitEvent = async () => {
     }
     alert("Your account was created successfully.");
     window.location = "/login";
+};
+
+const formSubmitEvent = async () => {
+    const messageTag = document.getElementById("message");
+    messageTag.innerHTML = "Creating account...";
+    await createAccount();
+    messageTag.innerHTML = "";
 };
 
 

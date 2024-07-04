@@ -26,17 +26,19 @@ const levelDb = new Level(databasePath, { valueEncoding: "json" });
 
 const getAccountKey = (username) => "account_" + username;
 
-const levelKeyExists = async (key) => {
+const levelGetSafe = async (key) => {
     try {
-        await levelDb.get(key);
+        return await levelDb.get(key);
         return true;
     } catch (error) {
         if (error.code === "LEVEL_NOT_FOUND") {
-            return false;
+            return null;
         }
         throw error;
     }
 };
+
+const levelKeyExists = async (key) => (await levelGetSafe(key) !== null);
 
 const renderPage = (res, path, options = {}, params = {}) => {
     const templatePath = pathUtils.join(viewsPath, path);
@@ -50,6 +52,16 @@ const renderPage = (res, path, options = {}, params = {}) => {
     });
 };
 
+const hasLoggedIn = (req) => (typeof req.session.username !== "undefined");
+
+const checkAuthentication = (req, res) => {
+    if (hasLoggedIn(req)) {
+        return true;
+    }
+    res.redirect("/login");
+    return false;
+};
+
 const router = express.Router();
 
 router.get("/bcrypt.min.js", (req, res) => {
@@ -59,11 +71,20 @@ router.get("/bcrypt.min.js", (req, res) => {
     res.sendFile(path);
 });
 
+router.get("/", (req, res) => {
+    if (hasLoggedIn(req)) {
+        res.redirect("/tasks");
+    } else {
+        res.redirect("/login");
+    }
+});
+
 router.get("/login", (req, res) => {
     renderPage(
         res,
         "login.html",
         { scripts: ["/bcrypt.min.js", "/javascript/login.js"] },
+        { hasLoggedIn: hasLoggedIn(req) },
     );
 });
 
@@ -96,6 +117,59 @@ router.post("/createAccountAction", async (req, res) => {
         changeNumber: 0,
     });
     res.json({ success: true });
+});
+
+router.post("/getAuthSalt", async (req, res) => {
+    const { username } = req.body;
+    const accountKey = getAccountKey(username);
+    const account = await levelGetSafe(accountKey);
+    if (account === null) {
+        res.json({
+            success: false,
+            message: "Could not find an account with the given username.",
+        });
+        return;
+    }
+    res.json({ success: true, authSalt: account.authSalt });
+});
+
+router.post("/loginAction", async (req, res) => {
+    const { username, authHash } = req.body;
+    const accountKey = getAccountKey(username);
+    const account = await levelGetSafe(accountKey);
+    if (account === null) {
+        res.json({
+            success: false,
+            message: "Could not find an account with the given username.",
+        });
+        return;
+    }
+    const hashMatches = await bcrypt.compare(authHash, account.authHashHash);
+    if (!hashMatches) {
+        res.json({
+            success: false,
+            message: "Incorrect password.",
+        });
+        return;
+    }
+    req.session.username = username;
+    res.json({ success: true, keySalt: account.keySalt });
+});
+
+router.get("/logout", (req, res) => {
+    delete req.session.username;
+    res.redirect("/login");
+});
+
+router.get("/tasks", (req, res) => {
+    if (!checkAuthentication(req, res)) {
+        return;
+    }
+    renderPage(
+        res,
+        "tasks.html",
+        { scripts: ["/javascript/tasks.js"] },
+    );
 });
 
 const expressApp = express();
