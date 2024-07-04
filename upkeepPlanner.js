@@ -40,6 +40,25 @@ const levelGetSafe = async (key) => {
 
 const levelKeyExists = async (key) => (await levelGetSafe(key) !== null);
 
+const getUsername = (req) => (req.session.username ?? null);
+
+const hasLoggedIn = (req) => (getUsername(req) !== null);
+
+const getAccount = async (req, res) => {
+    const username = getUsername(req);
+    if (username === null) {
+        res.json({ success: false, message: "You are not currently logged in." });
+        return null
+    }
+    const accountKey = getAccountKey(req.session.username);
+    return await levelDb.get(accountKey);
+};
+
+const putAccount = async (account) => {
+    const accountKey = getAccountKey(account.username);
+    await levelDb.put(accountKey, account);
+};
+
 const renderPage = (res, path, options = {}, params = {}) => {
     const templatePath = pathUtils.join(viewsPath, path);
     const template = fs.readFileSync(templatePath, "utf8");
@@ -51,8 +70,6 @@ const renderPage = (res, path, options = {}, params = {}) => {
         contentWidth: options.contentWidth ?? 700,
     });
 };
-
-const hasLoggedIn = (req) => (typeof req.session.username !== "undefined");
 
 const checkAuthentication = (req, res) => {
     if (hasLoggedIn(req)) {
@@ -107,7 +124,7 @@ router.post("/createAccountAction", async (req, res) => {
         return;
     }
     const authHashHash = await bcrypt.hash(authHash, 10);
-    await levelDb.put(accountKey, {
+    await putAccount({
         username,
         authSalt,
         keySalt,
@@ -172,9 +189,50 @@ router.get("/tasks", (req, res) => {
     );
 });
 
+router.get("/changePassword", (req, res) => {
+    if (!checkAuthentication(req, res)) {
+        return;
+    }
+    renderPage(
+        res,
+        "changePassword.html",
+        { scripts: ["/bcrypt.min.js", "/javascript/changePassword.js"] },
+    );
+});
+
+router.get("/getSalts", async (req, res) => {
+    const account = await getAccount(req, res);
+    if (account === null) {
+        return;
+    }
+    res.json({ success: true, authSalt: account.authSalt, keySalt: account.keySalt });
+});
+
+router.post("/changePasswordAction", async (req, res) => {
+    const account = await getAccount(req, res);
+    if (account === null) {
+        return;
+    }
+    const { oldAuthHash, newAuthSalt, newKeySalt, newAuthHash } = req.body;
+    const hashMatches = await bcrypt.compare(oldAuthHash, account.authHashHash);
+    if (!hashMatches) {
+        res.json({
+            success: false,
+            message: "Incorrect old password.",
+        });
+        return;
+    }
+    account.authSalt = newAuthSalt;
+    account.keySalt = newKeySalt;
+    account.authHashHash = await bcrypt.hash(newAuthHash, 10);
+    account.changeNumber += 1;
+    await putAccount(account);
+    res.json({ success: true });
+});
+
 const expressApp = express();
-expressApp.use(bodyParser.json());
-expressApp.use(bodyParser.urlencoded({ extended: false }));
+expressApp.use(bodyParser.json({ limit: "50mb" }));
+expressApp.use(bodyParser.urlencoded({ limit: "50mb", extended: false }));
 expressApp.use(cookieParser());
 expressApp.use(expressSession({
     secret: process.env.SESSION_SECRET,
