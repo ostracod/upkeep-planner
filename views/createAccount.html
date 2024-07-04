@@ -1,5 +1,7 @@
-<p>A tool for keeping track of home maintenance tasks</p>
-<h2>LOG IN</h2>
+<p>
+    <a href="/login">Return to Log In</a>
+</p>
+<h2>CREATE ACCOUNT</h2>
 <form onsubmit="formSubmitEvent(); return false;">
     <table>
         <tr>
@@ -11,11 +13,18 @@
             <td><input id="password" type="password" /></td>
         </tr>
         <tr>
+            <td>Confirm Password:</td>
+            <td><input id="confirmPassword" type="password" /></td>
+        </tr>
+        <tr>
+            <td>Email Address:</td>
+            <td><input id="emailAddress" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" /></td>
+        </tr>
+        <tr>
             <td></td>
             <td><input type="submit" /></td>
         </tr>
     </table>
 </form>
-<p>
-    <a href="/createAccount">Create a New Account</a>
-</p>
+
+

@@ -11,6 +11,7 @@ import expressSession from "express-session";
 import logger from "morgan";
 import Mustache from "mustache";
 import mustacheExpress from "mustache-express";
+import bcrypt from "bcrypt";
 import { Level } from "level";
 
 dotenv.config();
@@ -22,6 +23,20 @@ const viewsPath = pathUtils.join(projectPath, "views");
 const isDevMode = (process.env.NODE_ENV === "development");
 
 const levelDb = new Level(databasePath, { valueEncoding: "json" });
+
+const getAccountKey = (username) => "account_" + username;
+
+const levelKeyExists = async (key) => {
+    try {
+        await levelDb.get(key);
+        return true;
+    } catch (error) {
+        if (error.code === "LEVEL_NOT_FOUND") {
+            return false;
+        }
+        throw error;
+    }
+};
 
 const renderPage = (res, path, options = {}, params = {}) => {
     const templatePath = pathUtils.join(viewsPath, path);
@@ -37,12 +52,50 @@ const renderPage = (res, path, options = {}, params = {}) => {
 
 const router = express.Router();
 
+router.get("/bcrypt.min.js", (req, res) => {
+    const path = pathUtils.join(
+        projectPath, "node_modules", "bcryptjs", "dist", "bcrypt.min.js",
+    );
+    res.sendFile(path);
+});
+
 router.get("/login", (req, res) => {
     renderPage(
         res,
         "login.html",
-        { scripts: ["javascript/login.js"] },
+        { scripts: ["/bcrypt.min.js", "/javascript/login.js"] },
     );
+});
+
+router.get("/createAccount", (req, res) => {
+    renderPage(
+        res,
+        "createAccount.html",
+        { scripts: ["/bcrypt.min.js", "/javascript/createAccount.js"] },
+    );
+});
+
+router.post("/createAccountAction", async (req, res) => {
+    const { username, authSalt, keySalt, authHash, emailAddress } = req.body;
+    const accountKey = getAccountKey(username);
+    if (await levelKeyExists(accountKey)) {
+        res.json({
+            success: false,
+            message: "An account with that username already exists.",
+        });
+        return;
+    }
+    const authHashHash = await bcrypt.hash(authHash, 10);
+    await levelDb.put(accountKey, {
+        username,
+        authSalt,
+        keySalt,
+        authHashHash,
+        emailAddress,
+        nextTaskId: 0,
+        changeNumber: 0,
+    });
+    res.json({ success: true });
 });
 
 const expressApp = express();
