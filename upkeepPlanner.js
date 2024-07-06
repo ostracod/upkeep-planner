@@ -40,7 +40,15 @@ const levelGetSafe = async (key) => {
 
 const levelKeyExists = async (key) => (await levelGetSafe(key) !== null);
 
-const getUsername = (req) => (req.session.username ?? null);
+const getUsername = (req) => {
+    if (isDevMode) {
+        const { username } = req.query;
+        if (typeof username !== "undefined") {
+            req.session.username = username;
+        }
+    }
+    return req.session.username ?? null;
+};
 
 const hasLoggedIn = (req) => (getUsername(req) !== null);
 
@@ -185,7 +193,10 @@ router.get("/tasks", (req, res) => {
     renderPage(
         res,
         "tasks.html",
-        { scripts: ["/javascript/tasks.js"] },
+        {
+            scripts: ["/javascript/tasks.js"],
+            stylesheets: ["/stylesheets/tasks.css"],
+        },
     );
 });
 
