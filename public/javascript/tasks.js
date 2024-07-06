@@ -4,6 +4,17 @@ const newCategoryName = "New Category";
 let keyHash;
 let rootContainer;
 
+const createButtons = (buttonDefs) => {
+    const output = document.createElement("span");
+    for (const buttonDef of buttonDefs) {
+        const button = document.createElement("button");
+        button.innerHTML = buttonDef.text;
+        button.onclick = buttonDef.onClick;
+        output.appendChild(button);
+    }
+    return output;
+};
+
 class Container {
     
     constructor(tag) {
@@ -12,8 +23,19 @@ class Container {
     }
     
     addItem(plannerItem) {
+        if (plannerItem.parentContainer !== null) {
+            plannerItem.remove();
+        }
         this.tag.appendChild(plannerItem.tag);
         this.plannerItems.push(plannerItem);
+        plannerItem.parentContainer = this;
+    }
+    
+    removeItem(plannerItem) {
+        this.tag.removeChild(plannerItem.tag);
+        const index = this.plannerItems.indexOf(plannerItem);
+        this.plannerItems.splice(index, 1);
+        plannerItem.parentContainer = null;
     }
 }
 
@@ -24,25 +46,22 @@ class PlannerItem {
     constructor(name) {
         this.name = name;
         this.tag = this.createTag();
+        this.parentContainer = null;
     }
     
-    createButtons(inputButtonDefs) {
-        const buttonDefs = [
-            ...inputButtonDefs,
+    createButtons(buttonDefs) {
+        this.buttonsTag = createButtons([
+            ...buttonDefs,
             {
                 text: "Move",
                 onClick: () => {},
             },
-        ];
-        const output = document.createElement("span");
-        output.style.marginLeft = "15px";
-        for (const buttonDef of buttonDefs) {
-            const button = document.createElement("button");
-            button.innerHTML = buttonDef.text;
-            button.onclick = buttonDef.onClick;
-            output.appendChild(button);
-        }
-        return output;
+        ]);
+        return this.buttonsTag;
+    }
+    
+    remove() {
+        this.parentContainer.removeItem(this);
     }
 }
 
@@ -61,9 +80,20 @@ class Category extends PlannerItem {
         output.className = "plannerItem";
         
         const rowTag = document.createElement("div");
-        const nameTag = document.createElement("span");
-        nameTag.innerHTML = this.name;
-        rowTag.appendChild(nameTag);
+        this.nameTag = document.createElement("span");
+        this.nameTag.innerHTML = this.name;
+        this.nameTag.style.marginRight = "15px";
+        rowTag.appendChild(this.nameTag);
+        this.renameTag = document.createElement("input");
+        this.renameTag.style.width = "150px";
+        this.renameTag.style.marginRight = "15px";
+        this.renameTag.style.display = "none";
+        this.renameTag.onkeydown = () => {
+            if (event.keyCode === 13) {
+                this.finishRename();
+            }
+        };
+        rowTag.appendChild(this.renameTag);
         const buttonsTag = this.createButtons([
             {
                 text: "Add Task",
@@ -77,14 +107,34 @@ class Category extends PlannerItem {
             },
             {
                 text: "Rename",
-                onClick: () => {},
+                onClick: () => {
+                    this.startRename();
+                },
             },
             {
                 text: "Delete",
-                onClick: () => {},
+                onClick: () => {
+                    this.remove();
+                },
             },
         ]);
         rowTag.appendChild(buttonsTag);
+        this.renameButtonsTag = createButtons([
+            {
+                text: "Save",
+                onClick: () => {
+                    this.finishRename();
+                },
+            },
+            {
+                text: "Cancel",
+                onClick: () => {
+                    this.hideRenameTags();
+                },
+            },
+        ]);
+        this.renameButtonsTag.style.display = "none";
+        rowTag.appendChild(this.renameButtonsTag);
         output.appendChild(rowTag);
         
         const containerTag = document.createElement("div");
@@ -98,6 +148,28 @@ class Category extends PlannerItem {
     addNewCategory() {
         const category = new Category(newCategoryName);
         this.container.addItem(category);
+    }
+    
+    startRename() {
+        this.nameTag.style.display = "none";
+        this.buttonsTag.style.display = "none";
+        this.renameTag.style.display = "";
+        this.renameButtonsTag.style.display = "";
+        this.renameTag.value = this.name;
+        this.renameTag.focus();
+    }
+    
+    finishRename() {
+        this.name = this.renameTag.value;
+        this.nameTag.innerHTML = this.name;
+        this.hideRenameTags();
+    }
+    
+    hideRenameTags() {
+        this.nameTag.style.display = "";
+        this.buttonsTag.style.display = "";
+        this.renameTag.style.display = "none";
+        this.renameButtonsTag.style.display = "none";
     }
 }
 
