@@ -1,7 +1,21 @@
-<div id="rootContainer"></div>
-<p>
-    <button onclick="addRootTask();">Add Task</button><button onclick="addRootCategory();">Add Category</button>
-</p>
+<div id="viewPlannerItems">
+    <div id="rootContainer"></div>
+    <p>
+        <button onclick="startTaskCreation();">Add Task</button><button onclick="addRootCategory();">Add Category</button>
+    </p>
+</div>
+<div id="editTask" style="display: none;">
+    <p>
+        Task name: <input id="editTaskName" style="width: 150px;" />
+    </p>
+    <p>
+        Parent category:
+        <select id="editParentCategory"></select>
+    </p>
+    <p>
+        <button onclick="saveTask();">Save Task</button><button onclick="viewPlannerItems();">Cancel</button>
+    </p>
+</div>
 <p>
     <a href="/changePassword">Change Password</a> | <a href="/logout">Log Out</a>
 </p>
