@@ -1,10 +1,12 @@
 
 const newCategoryName = "New Category";
-const pageIds = ["viewPlannerItems", "editTask"];
+const rootCategoryName = "Top Level";
+const pageIds = ["viewPlannerItems", "editTask", "viewTask"];
 
 let keyHash;
 let rootContainer;
 let allCategories;
+let currentTask;
 
 const createButtons = (buttonDefs) => {
     const output = document.createElement("span");
@@ -126,6 +128,15 @@ class PlannerItem {
         return this.moveButtonsTag;
     }
     
+    getParentPlannerItem() {
+        return this.parentContainer.parentPlannerItem;
+    }
+    
+    setName(name) {
+        this.name = name;
+        this.nameTag.innerHTML = name;
+    }
+    
     remove() {
         this.parentContainer.removeItem(this);
     }
@@ -179,7 +190,7 @@ class PlannerItem {
     }
     
     exitCategory() {
-        const { parentPlannerItem } = this.parentContainer;
+        const parentPlannerItem = this.getParentPlannerItem();
         if (parentPlannerItem === null) {
             return;
         }
@@ -208,7 +219,9 @@ class Task extends PlannerItem {
             },
             {
                 text: "View",
-                onClick: () => {},
+                onClick: () => {
+                    viewTask(this);
+                },
             },
         ]);
         rowTag.appendChild(buttonsTag);
@@ -317,8 +330,7 @@ class Category extends PlannerItem {
     }
     
     finishRename() {
-        this.name = this.renameTag.value;
-        this.nameTag.innerHTML = this.name;
+        this.setName(this.renameTag.value);
         this.hideRenameTags();
     }
     
@@ -344,24 +356,19 @@ class Category extends PlannerItem {
     }
 }
 
-const hideAllPages = () => {
+const showPage = (idToShow) => {
     for (const id of pageIds) {
-        document.getElementById(id).style.display = "none";
+        document.getElementById(id).style.display = (id === idToShow) ? "" : "none";
     }
 }
 
-const startTaskCreation = (parentCategory = null) => {
-    hideAllPages();
-    document.getElementById("editTask").style.display = "";
-    const nameTag = document.getElementById("editTaskName");
-    nameTag.value = "";
-    nameTag.focus();
+const updateCategoryOptions = (categoryToSelect) => {
     allCategories = rootContainer.getAllCategories();
     const selectTag = document.getElementById("editParentCategory");
     selectTag.innerHTML = "";
     const rootOptionTag = document.createElement("option");
     rootOptionTag.value = "-1";
-    rootOptionTag.innerHTML = "Top Level";
+    rootOptionTag.innerHTML = rootCategoryName;
     selectTag.appendChild(rootOptionTag);
     for (let index = 0; index < allCategories.length; index++) {
         const category = allCategories[index];
@@ -370,8 +377,30 @@ const startTaskCreation = (parentCategory = null) => {
         optionTag.innerHTML = category.name;
         selectTag.appendChild(optionTag);
     }
-    const parentIndex = allCategories.indexOf(parentCategory);
+    const parentIndex = allCategories.indexOf(categoryToSelect);
     selectTag.value = `${parentIndex}`;
+};
+
+const startTaskCreation = (parentCategory = null) => {
+    currentTask = null;
+    showPage("editTask");
+    const nameTag = document.getElementById("editTaskName");
+    nameTag.value = "";
+    nameTag.focus();
+    updateCategoryOptions(parentCategory);
+};
+
+const startTaskEdit = () => {
+    showPage("editTask");
+    document.getElementById("editTaskName").value = currentTask.name;
+    const parentPlannerItem = currentTask.getParentPlannerItem();
+    updateCategoryOptions(parentPlannerItem);
+};
+
+const getEditParentContainer = () => {
+    const selectTag = document.getElementById("editParentCategory");
+    const parentIndex = parseInt(selectTag.value, 10);
+    return (parentIndex < 0) ? rootContainer : allCategories[parentIndex].container;
 };
 
 const saveTask = () => {
@@ -382,22 +411,47 @@ const saveTask = () => {
         nameTag.focus();
         return;
     }
-    const task = new Task(name);
-    const selectTag = document.getElementById("editParentCategory");
-    const parentIndex = parseInt(selectTag.value, 10);
-    let parentContainer;
-    if (parentIndex < 0) {
-        parentContainer = rootContainer;
+    const parentContainer = getEditParentContainer();
+    if (currentTask === null) {
+        const task = new Task(name);
+        parentContainer.addItem(task);
+        viewPlannerItems();
     } else {
-        parentContainer = allCategories[parentIndex].container;
+        currentTask.setName(name);
+        if (currentTask.parentContainer !== parentContainer) {
+            currentTask.remove();
+            parentContainer.addItem(currentTask);
+        }
+        viewTask();
     }
-    parentContainer.addItem(task);
-    viewPlannerItems();
 };
 
 const viewPlannerItems = () => {
-    hideAllPages();
-    document.getElementById("viewPlannerItems").style.display = "";
+    showPage("viewPlannerItems");
+};
+
+const viewTask = (task = null) => {
+    if (task !== null) {
+        currentTask = task;
+    }
+    showPage("viewTask");
+    document.getElementById("viewTaskName").innerHTML = currentTask.name;
+    const parentPlannerItem = currentTask.getParentPlannerItem();
+    let parentName;
+    if (parentPlannerItem === null) {
+        parentName = rootCategoryName;
+    } else {
+        parentName = parentPlannerItem.name;
+    }
+    document.getElementById("viewParentCategory").innerHTML = parentName;
+};
+
+const cancelTaskEdit = () => {
+    if (currentTask === null) {
+        viewPlannerItems();
+    } else {
+        viewTask();
+    }
 };
 
 const addRootCategory = () => {

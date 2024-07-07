@@ -13,7 +13,18 @@
         <select id="editParentCategory"></select>
     </p>
     <p>
-        <button onclick="saveTask();">Save Task</button><button onclick="viewPlannerItems();">Cancel</button>
+        <button onclick="saveTask();">Save Task</button><button onclick="cancelTaskEdit();">Cancel</button>
+    </p>
+</div>
+<div id="viewTask" style="display: none;">
+    <p>
+        Task name: <span id="viewTaskName"></span>
+    </p>
+    <p>
+        Parent category: <span id="viewParentCategory"></span>
+    </p>
+    <p>
+        <button onclick="startTaskEdit();">Edit Task</button><button onclick="viewPlannerItems();">Return to Task List</button>
     </p>
 </div>
 <p>
