@@ -13,6 +13,10 @@
         <select id="editParentCategory"></select>
     </p>
     <p>
+        Notes:<br />
+        <textarea id="editTaskNotes" style="width: 300px; height: 80px;"></textarea>
+    </p>
+    <p>
         <button onclick="saveTask();">Save Task</button><button onclick="cancelTaskEdit();">Cancel</button>
     </p>
 </div>
@@ -23,8 +27,9 @@
     <p>
         Parent category: <span id="viewParentCategory"></span>
     </p>
+    <p id="viewTaskNotes"></p>
     <p>
-        <button onclick="startTaskEdit();">Edit Task</button><button onclick="viewPlannerItems();">Return to Task List</button>
+        <button onclick="startTaskEdit();">Edit Task</button><button onclick="deleteTask();">Delete Task</button><button onclick="viewPlannerItems();">Return to Task List</button>
     </p>
 </div>
 <p>

@@ -203,6 +203,11 @@ class PlannerItem {
 
 class Task extends PlannerItem {
     
+    constructor(name, notes) {
+        super(name);
+        this.notes = notes;
+    }
+    
     createTag() {
         const output = document.createElement("div");
         output.className = "plannerItem";
@@ -387,12 +392,14 @@ const startTaskCreation = (parentCategory = null) => {
     const nameTag = document.getElementById("editTaskName");
     nameTag.value = "";
     nameTag.focus();
+    document.getElementById("editTaskNotes").value = "";
     updateCategoryOptions(parentCategory);
 };
 
 const startTaskEdit = () => {
     showPage("editTask");
     document.getElementById("editTaskName").value = currentTask.name;
+    document.getElementById("editTaskNotes").value = currentTask.notes;
     const parentPlannerItem = currentTask.getParentPlannerItem();
     updateCategoryOptions(parentPlannerItem);
 };
@@ -411,13 +418,15 @@ const saveTask = () => {
         nameTag.focus();
         return;
     }
+    const notes = document.getElementById("editTaskNotes").value;
     const parentContainer = getEditParentContainer();
     if (currentTask === null) {
-        const task = new Task(name);
+        const task = new Task(name, notes);
         parentContainer.addItem(task);
         viewPlannerItems();
     } else {
         currentTask.setName(name);
+        currentTask.notes = notes;
         if (currentTask.parentContainer !== parentContainer) {
             currentTask.remove();
             parentContainer.addItem(currentTask);
@@ -430,12 +439,34 @@ const viewPlannerItems = () => {
     showPage("viewPlannerItems");
 };
 
+const displayNotes = (destTag, notes) => {
+    const lines = ["Notes:", ...notes.split("\n")];
+    destTag.innerHTML = "";
+    for (let index = 0; index < lines.length; index++) {
+        const line = lines[index];
+        if (index > 0) {
+            destTag.appendChild(document.createElement("br"));
+        }
+        destTag.appendChild(document.createTextNode(line));
+    }
+};
+
 const viewTask = (task = null) => {
     if (task !== null) {
         currentTask = task;
     }
     showPage("viewTask");
     document.getElementById("viewTaskName").innerHTML = currentTask.name;
+    const notesTag = document.getElementById("viewTaskNotes");
+    let displayStyle;
+    if (currentTask.notes.length > 0) {
+        displayNotes(notesTag, currentTask.notes);
+        displayStyle = "";
+    } else {
+        notesTag.innerHTML = "";
+        displayStyle = "none";
+    }
+    notesTag.style.display = displayStyle;
     const parentPlannerItem = currentTask.getParentPlannerItem();
     let parentName;
     if (parentPlannerItem === null) {
@@ -451,6 +482,14 @@ const cancelTaskEdit = () => {
         viewPlannerItems();
     } else {
         viewTask();
+    }
+};
+
+const deleteTask = () => {
+    const shouldDelete = confirm("Are you sure you want to delete this task?");
+    if (shouldDelete) {
+        currentTask.remove();
+        viewPlannerItems();
     }
 };
 
