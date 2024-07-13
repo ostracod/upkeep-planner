@@ -31,6 +31,28 @@
     <p>
         <button onclick="startTaskEdit();">Edit Task</button><button onclick="deleteTask();">Delete Task</button><button onclick="viewPlannerItems();">Return to Task List</button>
     </p>
+    <p>
+        <strong>Add New Completion</strong>
+    </p>
+    <div style="margin-left: 20px;">
+        <p>
+            Date: <input id="newCompletionDate" type="date" style="margin-right: 15px;" />
+            <input id="dateIsApproximate" type="checkbox" /> Date is approximate
+        </p>
+        <p>
+            Notes:<br />
+            <textarea id="newCompletionNotes" style="width: 300px; height: 80px;"></textarea>
+        </p>
+        <p>
+            <button onclick="saveNewCompletion();">Save Completion</button>
+        </p>
+    </div>
+    <p>
+        <strong>Past Completions</strong>
+    </p>
+    <div id="pastCompletions" style="border: 1px #AAAAAA solid; padding: 10px; padding-left: 20px; max-height: 200px; overflow-y: scroll;">
+        (None)
+    </div>
 </div>
 <p>
     <a href="/changePassword">Change Password</a> | <a href="/logout">Log Out</a>

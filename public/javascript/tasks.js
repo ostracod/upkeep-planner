@@ -8,6 +8,49 @@ let rootContainer;
 let allCategories;
 let currentTask;
 
+const convertNativeDateToDate = (nativeDate) => ({
+    year: nativeDate.getFullYear(),
+    month: nativeDate.getMonth() + 1,
+    day: nativeDate.getDate(),
+});
+
+const convertDateToNativeDate = (date) => new Date(date.year, date.month - 1, date.day, 11);
+
+const convertDateToTimestamp = (date) => {
+    const nativeDate = convertDateToNativeDate(date);
+    return nativeDate.getTime() / 1000;
+};
+
+const convertTimestampToDate = (timestamp) => {
+    const nativeDate = new Date(timestamp * 1000);
+    return convertNativeDateToDate(nativeDate);
+};
+
+const getCurrentDate = () => convertNativeDateToDate(new Date());
+
+const convertDateToString = (date) => {
+    const terms = [
+        `${date.year}`.padStart(4, "0"),
+        `${date.month}`.padStart(2, "0"),
+        `${date.day}`.padStart(2, "0"),
+    ];
+    return terms.join("-");
+};
+
+const convertStringToDate = (dateString) => {
+    const values = dateString.split("-").map((term) => parseInt(term, 10));
+    return { year: values[0], month: values[1], day: values[2] };
+};
+
+// Returns the number of days from date2 to date1.
+const subtractDates = (date1, date2) => {
+    const nativeDate1 = convertDateToNativeDate(date1);
+    const nativeDate2 = convertDateToNativeDate(date2);
+    // `timestampDelta` is measured in seconds.
+    const timestampDelta = (nativeDate1 - nativeDate2) / 1000;
+    return timestampDelta / (60 * 60 * 24);
+};
+
 const createButtons = (buttonDefs) => {
     const output = document.createElement("span");
     for (const buttonDef of buttonDefs) {
@@ -18,6 +61,16 @@ const createButtons = (buttonDefs) => {
     }
     return output;
 };
+
+class Completion {
+    
+    constructor(date, dateIsApproximate, notes) {
+        this.date = date;
+        this.dateIsApproximate = dateIsApproximate;
+        this.notes = notes;
+        this.timestamp = convertDateToTimestamp(this.date);
+    }
+}
 
 class Container {
     
@@ -206,6 +259,7 @@ class Task extends PlannerItem {
     constructor(name, notes) {
         super(name);
         this.notes = notes;
+        this.completions = [];
     }
     
     createTag() {
@@ -235,6 +289,17 @@ class Task extends PlannerItem {
         output.appendChild(rowTag);
         
         return output;
+    }
+    
+    sortCompletions() {
+        this.completions.sort(
+            (completion1, completion2) => completion1.timestamp - completion2.timestamp,
+        );
+    }
+    
+    addCompletion(completion) {
+        this.completions.push(completion);
+        this.sortCompletions();
     }
 }
 
@@ -451,6 +516,13 @@ const displayNotes = (destTag, notes) => {
     }
 };
 
+const clearNewCompletionForm = () => {
+    const currentDate = getCurrentDate();
+    document.getElementById("newCompletionDate").value = convertDateToString(currentDate);
+    document.getElementById("dateIsApproximate").checked = false;
+    document.getElementById("newCompletionNotes").value = "";
+};
+
 const viewTask = (task = null) => {
     if (task !== null) {
         currentTask = task;
@@ -475,6 +547,7 @@ const viewTask = (task = null) => {
         parentName = parentPlannerItem.name;
     }
     document.getElementById("viewParentCategory").innerHTML = parentName;
+    clearNewCompletionForm();
 };
 
 const cancelTaskEdit = () => {
@@ -491,6 +564,20 @@ const deleteTask = () => {
         currentTask.remove();
         viewPlannerItems();
     }
+};
+
+const saveNewCompletion = () => {
+    const dateString = document.getElementById("newCompletionDate").value;
+    if (dateString.length <= 0) {
+        alert("Please enter a date for the new completion.");
+        return;
+    }
+    const date = convertStringToDate(dateString);
+    const dateIsApproximate = document.getElementById("dateIsApproximate").checked;
+    const notes = document.getElementById("newCompletionNotes").value;
+    const completion = new Completion(date, dateIsApproximate, notes);
+    currentTask.addCompletion(completion);
+    clearNewCompletionForm();
 };
 
 const addRootCategory = () => {
