@@ -69,6 +69,19 @@ class Completion {
         this.dateIsApproximate = dateIsApproximate;
         this.notes = notes;
         this.timestamp = convertDateToTimestamp(this.date);
+        this.tag = null;
+    }
+    
+    getTag() {
+        if (this.tag === null) {
+            this.tag = document.createElement("div");
+            let text = convertDateToString(this.date);
+            if (this.dateIsApproximate) {
+                text = "~" + text;
+            }
+            this.tag.innerHTML = text;
+        }
+        return this.tag;
     }
 }
 
@@ -274,7 +287,9 @@ class Task extends PlannerItem {
         const buttonsTag = this.createButtons([
             {
                 text: "Mark as Complete",
-                onClick: () => {},
+                onClick: () => {
+                    this.markAsComplete();
+                },
             },
             {
                 text: "View",
@@ -291,6 +306,20 @@ class Task extends PlannerItem {
         return output;
     }
     
+    displayCompletions() {
+        const completionsTag = document.getElementById("pastCompletions");
+        if (this.completions.length <= 0) {
+            completionsTag.innerHTML = "(None)";
+            return;
+        }
+        completionsTag.innerHTML = "";
+        for (let index = this.completions.length - 1; index >= 0; index--) {
+            const completion = this.completions[index];
+            const completionTag = completion.getTag();
+            completionsTag.appendChild(completionTag);
+        }
+    }
+    
     sortCompletions() {
         this.completions.sort(
             (completion1, completion2) => completion1.timestamp - completion2.timestamp,
@@ -300,6 +329,25 @@ class Task extends PlannerItem {
     addCompletion(completion) {
         this.completions.push(completion);
         this.sortCompletions();
+        if (this === currentTask) {
+            this.displayCompletions();
+        }
+    }
+    
+    getLastCompletionDate() {
+        return (this.completions.length > 0) ? this.completions.at(-1).date : null;
+    }
+    
+    markAsComplete() {
+        const lastCompletionDate = this.getLastCompletionDate();
+        const currentDate = getCurrentDate();
+        if (lastCompletionDate === null
+                || subtractDates(currentDate, lastCompletionDate) > 0) {
+            const completion = new Completion(currentDate, false, "");
+            this.addCompletion(completion);
+        } else {
+            alert("This task has already been completed today.");
+        }
     }
 }
 
@@ -501,6 +549,7 @@ const saveTask = () => {
 };
 
 const viewPlannerItems = () => {
+    currentTask = null;
     showPage("viewPlannerItems");
 };
 
@@ -548,6 +597,7 @@ const viewTask = (task = null) => {
     }
     document.getElementById("viewParentCategory").innerHTML = parentName;
     clearNewCompletionForm();
+    currentTask.displayCompletions();
 };
 
 const cancelTaskEdit = () => {
