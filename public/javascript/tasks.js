@@ -52,7 +52,8 @@ const subtractDates = (date1, date2) => {
 };
 
 const createButtons = (buttonDefs) => {
-    const output = document.createElement("span");
+    const output = document.createElement("div");
+    output.style.flexShrink = 0;
     for (const buttonDef of buttonDefs) {
         const button = document.createElement("button");
         button.innerHTML = buttonDef.text;
@@ -72,14 +73,18 @@ class Completion {
         this.tag = null;
     }
     
+    getDateString() {
+        let output = convertDateToString(this.date);
+        if (this.dateIsApproximate) {
+            output = "~" + output;
+        }
+        return output;
+    }
+    
     getTag() {
         if (this.tag === null) {
             this.tag = document.createElement("div");
-            let text = convertDateToString(this.date);
-            if (this.dateIsApproximate) {
-                text = "~" + text;
-            }
-            this.tag.innerHTML = text;
+            this.tag.innerHTML = this.getDateString();
         }
         return this.tag;
     }
@@ -273,6 +278,7 @@ class Task extends PlannerItem {
         super(name);
         this.notes = notes;
         this.completions = [];
+        this.updateCompletionDateTag();
     }
     
     createTag() {
@@ -280,10 +286,18 @@ class Task extends PlannerItem {
         output.className = "plannerItem";
         
         const rowTag = document.createElement("div");
+        rowTag.className = "plannerItemRow";
+        
+        const textTag = document.createElement("div");
+        textTag.style.marginRight = "15px";
         this.nameTag = document.createElement("span");
         this.nameTag.innerHTML = this.name;
-        this.nameTag.style.marginRight = "15px";
-        rowTag.appendChild(this.nameTag);
+        textTag.appendChild(this.nameTag);
+        textTag.appendChild(document.createElement("br"));
+        this.completionDateTag = document.createElement("span");
+        textTag.appendChild(this.completionDateTag);
+        rowTag.appendChild(textTag);
+        
         const buttonsTag = this.createButtons([
             {
                 text: "Mark as Complete",
@@ -304,6 +318,13 @@ class Task extends PlannerItem {
         output.appendChild(rowTag);
         
         return output;
+    }
+    
+    updateCompletionDateTag() {
+        const completion = this.getLastCompletion();
+        this.completionDateTag.innerHTML = (completion === null)
+            ? "Never completed"
+            : `Last completed on ${completion.getDateString()}`;
     }
     
     displayCompletions() {
@@ -329,20 +350,21 @@ class Task extends PlannerItem {
     addCompletion(completion) {
         this.completions.push(completion);
         this.sortCompletions();
+        this.updateCompletionDateTag();
         if (this === currentTask) {
             this.displayCompletions();
         }
     }
     
-    getLastCompletionDate() {
-        return (this.completions.length > 0) ? this.completions.at(-1).date : null;
+    getLastCompletion() {
+        return (this.completions.length > 0) ? this.completions.at(-1) : null;
     }
     
     markAsComplete() {
-        const lastCompletionDate = this.getLastCompletionDate();
+        const lastCompletion = this.getLastCompletion();
         const currentDate = getCurrentDate();
-        if (lastCompletionDate === null
-                || subtractDates(currentDate, lastCompletionDate) > 0) {
+        if (lastCompletion === null
+                || subtractDates(currentDate, lastCompletion.date) !== 0) {
             const completion = new Completion(currentDate, false, "");
             this.addCompletion(completion);
         } else {
@@ -358,7 +380,8 @@ class Category extends PlannerItem {
         output.className = "plannerItem";
         
         const rowTag = document.createElement("div");
-        this.nameTag = document.createElement("span");
+        rowTag.className = "plannerItemRow";
+        this.nameTag = document.createElement("div");
         this.nameTag.innerHTML = this.name;
         this.nameTag.style.marginRight = "15px";
         this.nameTag.style.fontWeight = "bold";
