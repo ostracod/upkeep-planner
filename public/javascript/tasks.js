@@ -74,6 +74,7 @@ class Completion {
         this.timestamp = convertDateToTimestamp(this.date);
         this.tag = null;
         this.isShowingNotes = false;
+        this.parentTask = null;
     }
     
     getDateString() {
@@ -110,7 +111,12 @@ class Completion {
             },
             {
                 text: "Delete",
-                onClick: () => {},
+                onClick: () => {
+                    const shouldDelete = confirm(`Are you sure you want to delete the completion at ${this.getDateString()}?`);
+                    if (shouldDelete) {
+                        this.remove();
+                    }
+                },
             },
         ]);
         this.buttonsTag = buttonsResult.divTag;
@@ -142,6 +148,10 @@ class Completion {
             this.notesTag.innerHTML = "";
             this.notesTag.style.display = "none";
         }
+    }
+    
+    remove() {
+        this.parentTask.removeCompletion(this);
     }
 }
 
@@ -405,13 +415,18 @@ class Task extends PlannerItem {
         );
     }
     
-    addCompletion(completion) {
-        this.completions.push(completion);
-        this.sortCompletions();
+    handleCompletionsChange() {
         this.updateCompletionDateTag();
         if (this === currentTask) {
             this.displayCompletions();
         }
+    }
+    
+    addCompletion(completion) {
+        this.completions.push(completion);
+        completion.parentTask = this;
+        this.sortCompletions();
+        this.handleCompletionsChange();
     }
     
     getLastCompletion() {
@@ -428,6 +443,13 @@ class Task extends PlannerItem {
         } else {
             alert("This task has already been completed today.");
         }
+    }
+    
+    removeCompletion(completion) {
+        const index = this.completions.indexOf(completion);
+        this.completions.splice(index, 1);
+        completion.parentTask = null;
+        this.handleCompletionsChange();
     }
 }
 
