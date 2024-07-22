@@ -52,15 +52,17 @@ const subtractDates = (date1, date2) => {
 };
 
 const createButtons = (buttonDefs) => {
-    const output = document.createElement("div");
-    output.style.flexShrink = 0;
+    const divTag = document.createElement("div");
+    divTag.style.flexShrink = 0;
+    const buttonTags = [];
     for (const buttonDef of buttonDefs) {
         const button = document.createElement("button");
         button.innerHTML = buttonDef.text;
         button.onclick = buttonDef.onClick;
-        output.appendChild(button);
+        divTag.appendChild(button);
+        buttonTags.push(button);
     }
-    return output;
+    return { divTag, buttonTags };
 };
 
 class Completion {
@@ -71,6 +73,7 @@ class Completion {
         this.notes = notes;
         this.timestamp = convertDateToTimestamp(this.date);
         this.tag = null;
+        this.isShowingNotes = false;
     }
     
     getDateString() {
@@ -82,11 +85,63 @@ class Completion {
     }
     
     getTag() {
-        if (this.tag === null) {
-            this.tag = document.createElement("div");
-            this.tag.innerHTML = this.getDateString();
+        if (this.tag !== null) {
+            return this.tag;
         }
+        this.tag = document.createElement("div");
+        this.tag.className = "completion";
+        
+        const rowTag = document.createElement("div");
+        rowTag.style.display = "flex";
+        const textTag = document.createElement("div");
+        textTag.style.marginRight = "15px";
+        textTag.innerHTML = this.getDateString();
+        rowTag.appendChild(textTag);
+        const buttonsResult = createButtons([
+            {
+                text: "",
+                onClick: () => {
+                    this.toggleNotesVisibility();
+                },
+            },
+            {
+                text: "Edit",
+                onClick: () => {},
+            },
+            {
+                text: "Delete",
+                onClick: () => {},
+            },
+        ]);
+        this.buttonsTag = buttonsResult.divTag;
+        this.notesButton = buttonsResult.buttonTags[0];
+        this.updateNotesButton();
+        rowTag.appendChild(this.buttonsTag);
+        this.tag.appendChild(rowTag);
+        
+        this.notesTag = document.createElement("div");
+        this.notesTag.style.display = "none";
+        this.notesTag.style.marginTop = "10px";
+        this.tag.appendChild(this.notesTag);
+        
         return this.tag;
+    }
+    
+    updateNotesButton() {
+        this.notesButton.style.display = (this.notes.length > 0) ? "" : "none";
+        this.notesButton.innerHTML = this.isShowingNotes ? "Hide Notes" : "Show Notes";
+    }
+    
+    toggleNotesVisibility() {
+        this.isShowingNotes = !this.isShowingNotes;
+        this.updateNotesButton();
+        if (this.isShowingNotes) {
+            displayNotes(this.notesTag, this.notes);
+            this.notesTag.style.display = "";
+        } else {
+            this.notesTag.innerHTML = "";
+            this.notesTag.style.display = "none";
+        }
     }
 }
 
@@ -158,7 +213,7 @@ class PlannerItem {
                     this.startMove();
                 },
             },
-        ]);
+        ]).divTag;
         return this.buttonsTag;
     }
     
@@ -194,7 +249,7 @@ class PlannerItem {
                     this.endMove();
                 },
             },
-        ]);
+        ]).divTag;
         this.moveButtonsTag.style.display = "none";
         return this.moveButtonsTag;
     }
@@ -329,15 +384,18 @@ class Task extends PlannerItem {
     
     displayCompletions() {
         const completionsTag = document.getElementById("pastCompletions");
-        if (this.completions.length <= 0) {
-            completionsTag.innerHTML = "(None)";
-            return;
-        }
         completionsTag.innerHTML = "";
-        for (let index = this.completions.length - 1; index >= 0; index--) {
-            const completion = this.completions[index];
-            const completionTag = completion.getTag();
-            completionsTag.appendChild(completionTag);
+        if (this.completions.length <= 0) {
+            const placeholderTag = document.createElement("div");
+            placeholderTag.className = "completion";
+            placeholderTag.innerHTML = "(None)";
+            completionsTag.appendChild(placeholderTag);
+        } else {
+            for (let index = this.completions.length - 1; index >= 0; index--) {
+                const completion = this.completions[index];
+                const completionTag = completion.getTag();
+                completionsTag.appendChild(completionTag);
+            }
         }
     }
     
@@ -438,7 +496,7 @@ class Category extends PlannerItem {
                     this.hideRenameTags();
                 },
             },
-        ]);
+        ]).divTag;
         this.renameButtonsTag.style.display = "none";
         rowTag.appendChild(this.renameButtonsTag);
         output.appendChild(rowTag);

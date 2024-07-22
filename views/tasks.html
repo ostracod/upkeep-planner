@@ -22,6 +22,9 @@
 </div>
 <div id="viewTask" style="display: none;">
     <p>
+        <a onclick="viewPlannerItems();">Return to Task List</a>
+    </p>
+    <p>
         Task name: <span id="viewTaskName"></span>
     </p>
     <p>
@@ -29,10 +32,10 @@
     </p>
     <p id="viewTaskNotes"></p>
     <p>
-        <button onclick="startTaskEdit();">Edit Task</button><button onclick="deleteTask();">Delete Task</button><button onclick="viewPlannerItems();">Return to Task List</button>
+        <button onclick="startTaskEdit();">Edit Task</button><button onclick="deleteTask();">Delete Task</button>
     </p>
     <p>
-        <strong>Add New Completion</strong>
+        <strong>Add New Completion:</strong>
     </p>
     <div style="margin-left: 20px;">
         <p>
@@ -48,11 +51,9 @@
         </p>
     </div>
     <p>
-        <strong>Past Completions</strong>
+        <strong>Past Completions:</strong>
     </p>
-    <div id="pastCompletions" style="border: 1px #AAAAAA solid; padding: 10px; padding-left: 20px; max-height: 200px; overflow-y: scroll;">
-        (None)
-    </div>
+    <div id="pastCompletions" style="border: 1px #AAAAAA solid; padding: 10px; padding-left: 20px; max-height: 200px; overflow-y: scroll;"></div>
 </div>
 <p>
     <a href="/changePassword">Change Password</a> | <a href="/logout">Log Out</a>
