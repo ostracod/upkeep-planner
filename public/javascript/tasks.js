@@ -73,7 +73,7 @@ class Completion {
         this.notes = notes;
         this.timestamp = convertDateToTimestamp(this.date);
         this.tag = null;
-        this.isShowingNotes = false;
+        this.notesAreVisible = false;
         this.parentTask = null;
     }
     
@@ -92,22 +92,24 @@ class Completion {
         this.tag = document.createElement("div");
         this.tag.className = "completion";
         
-        const rowTag = document.createElement("div");
-        rowTag.style.display = "flex";
-        const textTag = document.createElement("div");
-        textTag.style.marginRight = "15px";
-        textTag.innerHTML = this.getDateString();
-        rowTag.appendChild(textTag);
+        this.rowTag = document.createElement("div");
+        this.rowTag.style.display = "flex";
+        this.textTag = document.createElement("div");
+        this.textTag.style.marginRight = "15px";
+        this.textTag.innerHTML = this.getDateString();
+        this.rowTag.appendChild(this.textTag);
         const buttonsResult = createButtons([
             {
                 text: "",
                 onClick: () => {
-                    this.toggleNotesVisibility();
+                    this.setNotesVisibility(!this.notesAreVisible);
                 },
             },
             {
                 text: "Edit",
-                onClick: () => {},
+                onClick: () => {
+                    this.showEditTag();
+                },
             },
             {
                 text: "Delete",
@@ -122,32 +124,111 @@ class Completion {
         this.buttonsTag = buttonsResult.divTag;
         this.notesButton = buttonsResult.buttonTags[0];
         this.updateNotesButton();
-        rowTag.appendChild(this.buttonsTag);
-        this.tag.appendChild(rowTag);
+        this.rowTag.appendChild(this.buttonsTag);
+        this.tag.appendChild(this.rowTag);
         
         this.notesTag = document.createElement("div");
         this.notesTag.style.display = "none";
         this.notesTag.style.marginTop = "10px";
         this.tag.appendChild(this.notesTag);
         
+        this.editTag = document.createElement("div");
+        this.editTag.style.display = "none";
+        this.editTag.style.marginTop = "20px";
+        this.editTag.style.marginBottom = "20px";
+        
+        const dateRowTag = document.createElement("div");
+        dateRowTag.style.marginBottom = "10px";
+        dateRowTag.appendChild(document.createTextNode("Date: "));
+        this.editDateTag = document.createElement("input");
+        this.editDateTag.type = "date";
+        this.editDateTag.style.marginRight = "15px";
+        dateRowTag.appendChild(this.editDateTag);
+        this.editIsApproxTag = document.createElement("input");
+        this.editIsApproxTag.type = "checkbox";
+        dateRowTag.appendChild(this.editIsApproxTag);
+        dateRowTag.appendChild(document.createTextNode(" Date is approximate"));
+        this.editTag.appendChild(dateRowTag);
+        
+        const notesRowTag = document.createElement("div");
+        notesRowTag.style.marginBottom = "10px";
+        notesRowTag.appendChild(document.createTextNode("Notes:"));
+        notesRowTag.appendChild(document.createElement("br"));
+        this.editNotesTag = document.createElement("textarea");
+        this.editNotesTag.style.width = "300px";
+        this.editNotesTag.style.height = "80px";
+        notesRowTag.appendChild(this.editNotesTag);
+        this.editTag.appendChild(notesRowTag);
+        
+        const buttonsRowTag = document.createElement("div");
+        buttonsRowTag.style.display = "flex";
+        const editButtonsResult = createButtons([
+            {
+                text: "Save Completion",
+                onClick: () => {
+                    this.finishEdit();
+                },
+            },
+            {
+                text: "Cancel",
+                onClick: () => {
+                    this.hideEditTag();
+                },
+            },
+        ]);
+        buttonsRowTag.appendChild(editButtonsResult.divTag);
+        this.editTag.appendChild(buttonsRowTag);
+        
+        this.tag.appendChild(this.editTag);
+        
         return this.tag;
     }
     
     updateNotesButton() {
         this.notesButton.style.display = (this.notes.length > 0) ? "" : "none";
-        this.notesButton.innerHTML = this.isShowingNotes ? "Hide Notes" : "Show Notes";
+        this.notesButton.innerHTML = this.notesAreVisible ? "Hide Notes" : "Show Notes";
     }
     
-    toggleNotesVisibility() {
-        this.isShowingNotes = !this.isShowingNotes;
+    setNotesVisibility(notesAreVisible) {
+        this.notesAreVisible = notesAreVisible;
         this.updateNotesButton();
-        if (this.isShowingNotes) {
+        if (this.notesAreVisible) {
             displayNotes(this.notesTag, this.notes);
             this.notesTag.style.display = "";
         } else {
             this.notesTag.innerHTML = "";
             this.notesTag.style.display = "none";
         }
+    }
+    
+    showEditTag() {
+        this.rowTag.style.display = "none";
+        this.setNotesVisibility(false);
+        this.editTag.style.display = "";
+        this.editDateTag.value = convertDateToString(this.date);
+        this.editIsApproxTag.checked = this.dateIsApproximate;
+        this.editNotesTag.value = this.notes;
+    }
+    
+    hideEditTag() {
+        this.rowTag.style.display = "flex";
+        this.editTag.style.display = "none";
+    }
+    
+    finishEdit() {
+        const dateString = this.editDateTag.value;
+        if (dateString.length <= 0) {
+            alert("Please enter a date for the completion.");
+            return;
+        }
+        this.date = convertStringToDate(dateString)
+        this.timestamp = convertDateToTimestamp(this.date);
+        this.dateIsApproximate = this.editIsApproxTag.checked;
+        this.notes = this.editNotesTag.value;
+        this.hideEditTag();
+        this.textTag.innerHTML = this.getDateString();
+        this.updateNotesButton();
+        this.parentTask.handleCompletionsChange();
     }
     
     remove() {
@@ -409,13 +490,10 @@ class Task extends PlannerItem {
         }
     }
     
-    sortCompletions() {
+    handleCompletionsChange() {
         this.completions.sort(
             (completion1, completion2) => completion1.timestamp - completion2.timestamp,
         );
-    }
-    
-    handleCompletionsChange() {
         this.updateCompletionDateTag();
         if (this === currentTask) {
             this.displayCompletions();
@@ -425,7 +503,6 @@ class Task extends PlannerItem {
     addCompletion(completion) {
         this.completions.push(completion);
         completion.parentTask = this;
-        this.sortCompletions();
         this.handleCompletionsChange();
     }
     
