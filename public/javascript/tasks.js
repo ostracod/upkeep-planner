@@ -527,6 +527,39 @@ class Task extends PlannerItem {
         }
     }
     
+    displayDueDate() {
+        let dueDateText;
+        let displayStyle;
+        if (currentTask.dueDate === null) {
+            dueDateText = "";
+            displayStyle = "none";
+        } else {
+            const dateString = convertDateToString(currentTask.dueDate);
+            if (currentTask.frequency === null) {
+                dueDateText = `Due on ${dateString}`;
+            } else {
+                const frequencyText = pluralize(currentTask.frequency, "day");
+                dueDateText = `Next due on ${dateString}; repeats every ${frequencyText}`;
+            }
+            displayStyle = "";
+        }
+        const dueDateTag = document.getElementById("viewDueDate");
+        dueDateTag.innerHTML = dueDateText;
+        dueDateTag.style.display = displayStyle;
+    }
+    
+    checkDueDate() {
+        if (this.frequency === null || this.dueDate === null || this.dueDateIsManual) {
+            return;
+        }
+        const completionDate = this.getLastCompletionDate();
+        if (completionDate === null) {
+            return;
+        }
+        this.dueDate = addDaysToDate(completionDate, this.frequency);
+        this.handleDueDateChange();
+    }
+    
     handleCompletionsChange() {
         this.completions.sort(
             (completion1, completion2) => completion1.timestamp - completion2.timestamp,
@@ -535,9 +568,30 @@ class Task extends PlannerItem {
         if (this === currentTask) {
             this.displayCompletions();
         }
+        this.checkDueDate();
+    }
+    
+    handleDueDateChange() {
+        this.updateDueDateTag();
+        if (this === currentTask) {
+            this.displayDueDate();
+        }
     }
     
     addCompletion(completion) {
+        if (this.dueDate !== null && this.dueDateIsManual) {
+            const lastDate = this.getLastCompletionDate();
+            if (lastDate === null || subtractDates(completion.date, lastDate) > 0) {
+                if (this.frequency === null) {
+                    this.dueDate = null;
+                    this.dueDateIsManual = null;
+                } else {
+                    this.dueDate = addDaysToDate(completion.date, this.frequency);
+                    this.dueDateIsManual = false;
+                }
+                this.handleDueDateChange();
+            }
+        }
         this.completions.push(completion);
         completion.parentTask = this;
         this.handleCompletionsChange();
@@ -547,11 +601,14 @@ class Task extends PlannerItem {
         return (this.completions.length > 0) ? this.completions.at(-1) : null;
     }
     
+    getLastCompletionDate() {
+        return this.getLastCompletion()?.date ?? null;
+    }
+    
     markAsComplete() {
-        const lastCompletion = this.getLastCompletion();
+        const lastDate = this.getLastCompletionDate();
         const currentDate = getCurrentDate();
-        if (lastCompletion === null
-                || subtractDates(currentDate, lastCompletion.date) !== 0) {
+        if (lastDate === null || subtractDates(currentDate, lastDate) !== 0) {
             const completion = new Completion(currentDate, false, "");
             this.addCompletion(completion);
         } else {
@@ -738,7 +795,7 @@ const startTaskEdit = () => {
     document.getElementById("editDueDate").value = (currentTask.dueDate === null)
         ? ""
         : convertDateToString(currentTask.dueDate);
-    document.getElementById("dueDateIsManual").checked = currentTask.dueDateIsManual ?? (currentTask.dueDate !== null);
+    document.getElementById("dueDateIsManual").checked = currentTask.dueDateIsManual ?? false;
     let scheduleType;
     if (currentTask.dueDate === null) {
         scheduleType = "noDueDate";
@@ -767,9 +824,12 @@ const handleScheduleTypeChange = () => {
 
 const updateEditDueDate = () => {
     const scheduleType = document.getElementById("scheduleType").value;
-    const isManual = document.getElementById("dueDateIsManual").checked;
+    if (scheduleType === "noDueDate") {
+        return;
+    }
+    const isManual = (scheduleType === "singleDueDate") || document.getElementById("dueDateIsManual").checked;
     const dueDateTag = document.getElementById("editDueDate");
-    dueDateTag.disabled = (scheduleType === "repeatingDueDate") ? !isManual : false;
+    dueDateTag.disabled = !isManual;
     if (isManual) {
         return;
     }
@@ -777,7 +837,7 @@ const updateEditDueDate = () => {
     if (Number.isNaN(frequency)) {
         return;
     }
-    const completionDate = currentTask?.getLastCompletion()?.date ?? null;
+    const completionDate = currentTask?.getLastCompletionDate() ?? null;
     const dueDate = (completionDate === null)
         ? getCurrentDate()
         : addDaysToDate(completionDate, frequency);
@@ -802,9 +862,10 @@ const saveTask = () => {
     const scheduleType = document.getElementById("scheduleType").value;
     let frequency = null;
     let dueDate;
-    let dueDateIsManual = null;
+    let dueDateIsManual;
     if (scheduleType === "noDueDate") {
         dueDate = null;
+        dueDateIsManual = null;
     } else {
         if (scheduleType === "repeatingDueDate") {
             const frequencyTag = document.getElementById("editFrequency");
@@ -815,6 +876,8 @@ const saveTask = () => {
                 return;
             }
             dueDateIsManual = document.getElementById("dueDateIsManual").checked;
+        } else {
+            dueDateIsManual = true;
         }
         const dateString = document.getElementById("editDueDate").value;
         if (dateString.length <= 0) {
@@ -839,7 +902,7 @@ const saveTask = () => {
             currentTask.remove();
             parentContainer.addItem(currentTask);
         }
-        currentTask.updateDueDateTag();
+        currentTask.handleDueDateChange();
         viewTask();
     }
 };
@@ -874,24 +937,7 @@ const viewTask = (task = null) => {
     }
     showPage("viewTask");
     document.getElementById("viewTaskName").innerHTML = currentTask.name;
-    let dueDateText;
-    let dueDateStyle;
-    if (currentTask.dueDate === null) {
-        dueDateText = "";
-        dueDateStyle = "none"
-    } else {
-        const dateString = convertDateToString(currentTask.dueDate);
-        if (currentTask.frequency === null) {
-            dueDateText = `Due on ${dateString}`;
-        } else {
-            frequencyText = pluralize(currentTask.frequency, "day");
-            dueDateText = `Next due on ${dateString}; repeats every ${frequencyText}`;
-        }
-        dueDateStyle = "";
-    }
-    const dueDateTag = document.getElementById("viewDueDate");
-    dueDateTag.innerHTML = dueDateText;
-    dueDateTag.style.display = dueDateStyle;
+    currentTask.displayDueDate();
     const parentPlannerItem = currentTask.getParentPlannerItem();
     let parentName;
     if (parentPlannerItem === null) {
