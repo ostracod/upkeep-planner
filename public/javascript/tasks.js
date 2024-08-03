@@ -9,6 +9,10 @@ let rootContainer;
 let allCategories;
 let currentTask;
 
+const pluralize = (amount, noun) => (
+    (amount === 1) ? `${amount} ${noun}` : `${amount} ${noun}s`
+);
+
 const convertNativeDateToDate = (nativeDate) => ({
     year: nativeDate.getFullYear(),
     month: nativeDate.getMonth() + 1,
@@ -434,6 +438,7 @@ class Task extends PlannerItem {
         this.notes = notes;
         this.completions = [];
         this.updateCompletionDateTag();
+        this.updateDueDateTag();
     }
     
     createTag() {
@@ -445,12 +450,13 @@ class Task extends PlannerItem {
         
         const textTag = document.createElement("div");
         textTag.style.marginRight = "15px";
-        this.nameTag = document.createElement("span");
+        this.nameTag = document.createElement("div");
         this.nameTag.innerHTML = this.name;
         textTag.appendChild(this.nameTag);
-        textTag.appendChild(document.createElement("br"));
-        this.completionDateTag = document.createElement("span");
+        this.completionDateTag = document.createElement("div");
         textTag.appendChild(this.completionDateTag);
+        this.dueDateTag = document.createElement("div");
+        textTag.appendChild(this.dueDateTag);
         rowTag.appendChild(textTag);
         
         const buttonsTag = this.createButtons([
@@ -477,9 +483,31 @@ class Task extends PlannerItem {
     
     updateCompletionDateTag() {
         const completion = this.getLastCompletion();
-        this.completionDateTag.innerHTML = (completion === null)
-            ? "Never completed"
-            : `Last completed on ${completion.getDateString()}`;
+        let text;
+        let displayStyle;
+        if (completion === null) {
+            text = "";
+            displayStyle = "none";
+        } else {
+            text = `Last completed on ${completion.getDateString()}`;
+            displayStyle = "";
+        }
+        this.completionDateTag.innerHTML = text;
+        this.completionDateTag.style.display = displayStyle;
+    }
+    
+    updateDueDateTag() {
+        let text;
+        let displayStyle;
+        if (this.dueDate === null) {
+            text = "";
+            displayStyle = "none";
+        } else {
+            text = `Due on ${convertDateToString(this.dueDate)}`;
+            displayStyle = "";
+        }
+        this.dueDateTag.innerHTML = text;
+        this.dueDateTag.style.display = displayStyle;
     }
     
     displayCompletions() {
@@ -699,8 +727,8 @@ const startTaskCreation = (parentCategory = null) => {
     document.getElementById("dueDateIsManual").checked = false;
     document.getElementById("scheduleType").value = "noDueDate";
     handleScheduleTypeChange();
-    document.getElementById("editTaskNotes").value = "";
     updateCategoryOptions(parentCategory);
+    document.getElementById("editTaskNotes").value = "";
 };
 
 const startTaskEdit = () => {
@@ -721,9 +749,9 @@ const startTaskEdit = () => {
     }
     document.getElementById("scheduleType").value = scheduleType;
     handleScheduleTypeChange();
-    document.getElementById("editTaskNotes").value = currentTask.notes;
     const parentPlannerItem = currentTask.getParentPlannerItem();
     updateCategoryOptions(parentPlannerItem);
+    document.getElementById("editTaskNotes").value = currentTask.notes;
 };
 
 const handleScheduleTypeChange = () => {
@@ -795,8 +823,8 @@ const saveTask = () => {
         }
         dueDate = convertStringToDate(dateString);
     }
-    const notes = document.getElementById("editTaskNotes").value;
     const parentContainer = getEditParentContainer();
+    const notes = document.getElementById("editTaskNotes").value;
     if (currentTask === null) {
         const task = new Task(name, frequency, dueDate, dueDateIsManual, notes);
         parentContainer.addItem(task);
@@ -811,6 +839,7 @@ const saveTask = () => {
             currentTask.remove();
             parentContainer.addItem(currentTask);
         }
+        currentTask.updateDueDateTag();
         viewTask();
     }
 };
@@ -845,16 +874,24 @@ const viewTask = (task = null) => {
     }
     showPage("viewTask");
     document.getElementById("viewTaskName").innerHTML = currentTask.name;
-    const notesTag = document.getElementById("viewTaskNotes");
-    let displayStyle;
-    if (currentTask.notes.length > 0) {
-        displayNotes(notesTag, currentTask.notes);
-        displayStyle = "";
+    let dueDateText;
+    let dueDateStyle;
+    if (currentTask.dueDate === null) {
+        dueDateText = "";
+        dueDateStyle = "none"
     } else {
-        notesTag.innerHTML = "";
-        displayStyle = "none";
+        const dateString = convertDateToString(currentTask.dueDate);
+        if (currentTask.frequency === null) {
+            dueDateText = `Due on ${dateString}`;
+        } else {
+            frequencyText = pluralize(currentTask.frequency, "day");
+            dueDateText = `Next due on ${dateString}; repeats every ${frequencyText}`;
+        }
+        dueDateStyle = "";
     }
-    notesTag.style.display = displayStyle;
+    const dueDateTag = document.getElementById("viewDueDate");
+    dueDateTag.innerHTML = dueDateText;
+    dueDateTag.style.display = dueDateStyle;
     const parentPlannerItem = currentTask.getParentPlannerItem();
     let parentName;
     if (parentPlannerItem === null) {
@@ -863,6 +900,16 @@ const viewTask = (task = null) => {
         parentName = parentPlannerItem.name;
     }
     document.getElementById("viewParentCategory").innerHTML = parentName;
+    const notesTag = document.getElementById("viewTaskNotes");
+    let notesStyle;
+    if (currentTask.notes.length > 0) {
+        displayNotes(notesTag, currentTask.notes);
+        notesStyle = "";
+    } else {
+        notesTag.innerHTML = "";
+        notesStyle = "none";
+    }
+    notesTag.style.display = notesStyle;
     clearNewCompletionForm();
     currentTask.displayCompletions();
 };

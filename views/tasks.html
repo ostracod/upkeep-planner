@@ -9,10 +9,6 @@
         Task name: <input id="editTaskName" style="width: 150px;" />
     </p>
     <p>
-        Parent category:
-        <select id="editParentCategory"></select>
-    </p>
-    <p>
         Schedule type:
         <select id="scheduleType" onchange="handleScheduleTypeChange();">
             <option value="noDueDate">No due date</option>
@@ -30,6 +26,10 @@
         </span>
     </p>
     <p>
+        Parent category:
+        <select id="editParentCategory"></select>
+    </p>
+    <p>
         Notes:<br />
         <textarea id="editTaskNotes" style="width: 300px; height: 80px;"></textarea>
     </p>
@@ -44,6 +44,7 @@
     <p>
         Task name: <span id="viewTaskName"></span>
     </p>
+    <p id="viewDueDate"></p>
     <p>
         Parent category: <span id="viewParentCategory"></span>
     </p>
