@@ -13,6 +13,23 @@
         <select id="editParentCategory"></select>
     </p>
     <p>
+        Schedule type:
+        <select id="scheduleType" onchange="handleScheduleTypeChange();">
+            <option value="noDueDate">No due date</option>
+            <option value="singleDueDate">Single due date</option>
+            <option value="repeatingDueDate">Repeating due date</option>
+        </select>
+    </p>
+    <p id="editFrequencyRow">
+        Frequency: <input id="editFrequency" onblur="updateEditDueDate();" style="width: 80px;" /> days
+    </p>
+    <p id="editDueDateRow">
+        <span id="editDueDateLabel"></span> <input id="editDueDate" type="date" style="margin-right: 15px;" />
+        <span id="isManualContainer">
+            <input id="dueDateIsManual" type="checkbox" onchange="updateEditDueDate();" /> Manual override
+        </span>
+    </p>
+    <p>
         Notes:<br />
         <textarea id="editTaskNotes" style="width: 300px; height: 80px;"></textarea>
     </p>
