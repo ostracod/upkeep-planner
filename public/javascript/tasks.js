@@ -4,6 +4,14 @@ const rootCategoryName = "Top Level";
 const pageIds = ["viewPlannerItems", "editTask", "viewTask"];
 const secondsPerDay = 60 * 60 * 24;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const statusColors = {
+    neverCompleted: "#4444FF",
+    completed: "#44FF44",
+    upcoming: "#DDDD00",
+    grace: "#FF8800",
+    overdue: "#FF0000",
+    inactive: "#CCCCCC",
+};
 
 let keyHash;
 let rootContainer;
@@ -442,6 +450,7 @@ class Task extends PlannerItem {
         this.completions = [];
         this.updateCompletionDateTag();
         this.updateDueDateTag();
+        this.updateStatusCircle();
     }
     
     createTag() {
@@ -450,6 +459,14 @@ class Task extends PlannerItem {
         
         const rowTag = document.createElement("div");
         rowTag.className = "plannerItemRow";
+        
+        const circleContainer = document.createElement("div");
+        circleContainer.style.paddingBottom = "2px";
+        this.statusCircle = document.createElement("div");
+        this.statusCircle.className = "statusCircle";
+        this.statusCircle.style.marginRight = "10px";
+        circleContainer.appendChild(this.statusCircle);
+        rowTag.appendChild(circleContainer);
         
         const textTag = document.createElement("div");
         textTag.style.marginRight = "15px";
@@ -513,6 +530,25 @@ class Task extends PlannerItem {
         this.dueDateTag.style.display = displayStyle;
     }
     
+    getStatusCircleColor() {
+        const currentDate = getCurrentDate();
+        if (this.dueDate !== null) {
+            const dueDateOffset = subtractDates(currentDate, this.dueDate);
+            if (dueDateOffset >= 0) {
+                return statusColors.overdue;
+            }
+        }
+        const completionDate = this.getLastCompletionDate();
+        if (completionDate === null) {
+            return statusColors.neverCompleted;
+        }
+        return statusColors.completed;
+    }
+    
+    updateStatusCircle() {
+        this.statusCircle.style.background = this.getStatusCircleColor();
+    }
+    
     displayCompletions() {
         const completionsTag = document.getElementById("pastCompletions");
         completionsTag.innerHTML = "";
@@ -571,6 +607,7 @@ class Task extends PlannerItem {
         if (this === currentTask) {
             this.displayCompletions();
         }
+        this.updateStatusCircle();
         this.checkDueDate();
     }
     
@@ -579,6 +616,7 @@ class Task extends PlannerItem {
         if (this === currentTask) {
             this.displayDueDate();
         }
+        this.updateStatusCircle();
     }
     
     addCompletion(completion) {
@@ -1083,6 +1121,10 @@ const initializePage = () => {
     ]).divTag;
     buttonsTag.style.marginLeft = "15px";
     monthsTag.appendChild(buttonsTag);
+    for (const name in statusColors) {
+        const color = statusColors[name];
+        document.getElementById(name + "Legend").style.background = color;
+    }
 };
 
 
