@@ -14,6 +14,11 @@
     margin-bottom: 10px;
 }
 
+.activeMonth {
+    text-align: center;
+    margin-right: 10px;
+}
+
 button {
     margin-right: 5px;
 }

@@ -3,11 +3,13 @@ const newCategoryName = "New Category";
 const rootCategoryName = "Top Level";
 const pageIds = ["viewPlannerItems", "editTask", "viewTask"];
 const secondsPerDay = 60 * 60 * 24;
+const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 let keyHash;
 let rootContainer;
 let allCategories;
 let currentTask;
+let activeMonthCheckboxes;
 
 const pluralize = (amount, noun) => (
     (amount === 1) ? `${amount} ${noun}` : `${amount} ${noun}s`
@@ -430,11 +432,12 @@ class PlannerItem {
 
 class Task extends PlannerItem {
     
-    constructor(name, frequency, dueDate, dueDateIsManual, notes) {
+    constructor(name, frequency, dueDate, dueDateIsManual, activeMonths, notes) {
         super(name);
         this.frequency = frequency;
         this.dueDate = dueDate;
         this.dueDateIsManual = dueDateIsManual;
+        this.activeMonths = activeMonths;
         this.notes = notes;
         this.completions = [];
         this.updateCompletionDateTag();
@@ -773,6 +776,12 @@ const updateCategoryOptions = (categoryToSelect) => {
     selectTag.value = `${parentIndex}`;
 };
 
+const setAllActiveMonths = (value) => {
+    for (const checkbox of activeMonthCheckboxes) {
+        checkbox.checked = value;
+    }
+};
+
 const startTaskCreation = (parentCategory = null) => {
     currentTask = null;
     showPage("editTask");
@@ -784,6 +793,7 @@ const startTaskCreation = (parentCategory = null) => {
     document.getElementById("dueDateIsManual").checked = false;
     document.getElementById("scheduleType").value = "noDueDate";
     handleScheduleTypeChange();
+    setAllActiveMonths(true);
     updateCategoryOptions(parentCategory);
     document.getElementById("editTaskNotes").value = "";
 };
@@ -806,6 +816,15 @@ const startTaskEdit = () => {
     }
     document.getElementById("scheduleType").value = scheduleType;
     handleScheduleTypeChange();
+    const { activeMonths } = currentTask;
+    if (activeMonths === null) {
+        setAllActiveMonths(true);
+    } else {
+        for (let index = 0; index < activeMonths.length; index++) {
+            const monthIsActive = activeMonths[index];
+            activeMonthCheckboxes[index].checked = monthIsActive;
+        }
+    }
     const parentPlannerItem = currentTask.getParentPlannerItem();
     updateCategoryOptions(parentPlannerItem);
     document.getElementById("editTaskNotes").value = currentTask.notes;
@@ -886,10 +905,21 @@ const saveTask = () => {
         }
         dueDate = convertStringToDate(dateString);
     }
-    const parentContainer = getEditParentContainer();
+    let activeMonths = [];
+    let hasInactiveMonth = false;
+    for (const checkbox of activeMonthCheckboxes) {
+        activeMonths.push(checkbox.checked);
+        if (!checkbox.checked) {
+            hasInactiveMonth = true;
+        }
+    }
+    if (!hasInactiveMonth) {
+        activeMonths = null;
+    }
     const notes = document.getElementById("editTaskNotes").value;
+    const parentContainer = getEditParentContainer();
     if (currentTask === null) {
-        const task = new Task(name, frequency, dueDate, dueDateIsManual, notes);
+        const task = new Task(name, frequency, dueDate, dueDateIsManual, activeMonths, notes);
         parentContainer.addItem(task);
         viewPlannerItems();
     } else {
@@ -897,6 +927,7 @@ const saveTask = () => {
         currentTask.frequency = frequency;
         currentTask.dueDate = dueDate;
         currentTask.dueDateIsManual = dueDateIsManual;
+        currentTask.activeMonths = activeMonths;
         currentTask.notes = notes;
         if (currentTask.parentContainer !== parentContainer) {
             currentTask.remove();
@@ -945,6 +976,27 @@ const viewTask = (task = null) => {
     } else {
         parentName = parentPlannerItem.name;
     }
+    const { activeMonths } = currentTask;
+    let monthsText;
+    let monthsStyle;
+    if (activeMonths === null) {
+        monthsText = "";
+        monthsStyle = "none"
+    } else {
+        const activeAbbreviations = [];
+        for (let index = 0; index < activeMonths.length; index++) {
+            const monthIsActive = activeMonths[index];
+            if (monthIsActive) {
+                abbreviation = monthAbbreviations[index];
+                activeAbbreviations.push(abbreviation);
+            }
+        }
+        monthsText = "Active months: " + activeAbbreviations.join(", ");
+        monthsStyle = "";
+    }
+    const monthsTag = document.getElementById("viewActiveMonths");
+    monthsTag.innerHTML = monthsText;
+    monthsTag.style.display = monthsStyle;
     document.getElementById("viewParentCategory").innerHTML = parentName;
     const notesTag = document.getElementById("viewTaskNotes");
     let notesStyle;
@@ -1002,6 +1054,35 @@ const initializePage = () => {
         window.location = "/login";
     }
     rootContainer = new Container(document.getElementById("rootContainer"));
+    const monthsTag = document.getElementById("editActiveMonths");
+    activeMonthCheckboxes = [];
+    for (const abbreviation of monthAbbreviations) {
+        const divTag = document.createElement("div");
+        divTag.className = "activeMonth";
+        divTag.appendChild(document.createTextNode(abbreviation));
+        divTag.appendChild(document.createElement("br"));
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        divTag.appendChild(checkbox);
+        activeMonthCheckboxes.push(checkbox);
+        monthsTag.appendChild(divTag);
+    }
+    const buttonsTag = createButtons([
+        {
+            text: "Select All",
+            onClick: () => {
+                setAllActiveMonths(true);
+            },
+        },
+        {
+            text: "Deselect All",
+            onClick: () => {
+                setAllActiveMonths(false);
+            },
+        },
+    ]).divTag;
+    buttonsTag.style.marginLeft = "15px";
+    monthsTag.appendChild(buttonsTag);
 };
 
 
