@@ -549,14 +549,18 @@ class Task extends PlannerItem {
             : subtractDates(currentDate, this.dueDate);
         if (dueDateOffset !== null) {
             if (dueDateOffset >= 0) {
+                if (this.gracePeriod !== null && dueDateOffset < this.gracePeriod) {
+                    return statusColors.grace;
+                }
                 return statusColors.overdue;
             }
-            // TODO: Add grace status.
+            if (this.upcomingPeriod !== null && dueDateOffset >= -this.upcomingPeriod) {
+                return statusColors.upcoming;
+            }
         }
         if (!dateIsInActiveMonth(currentDate, this.activeMonths)) {
             return statusColors.inactive;
         }
-        // TODO: Add upcoming status.
         const completionDate = this.getLastCompletionDate();
         if (completionDate === null) {
             return statusColors.neverCompleted;
@@ -1141,7 +1145,31 @@ const viewTask = (task = null) => {
     } else {
         parentName = parentPlannerItem.name;
     }
-    const { activeMonths } = currentTask;
+    const { upcomingPeriod, gracePeriod, activeMonths } = currentTask;
+    let upcomingText;
+    let upcomingStyle;
+    if (upcomingPeriod === null) {
+        upcomingText = "";
+        upcomingStyle = "none";
+    } else {
+        upcomingText = "Upcoming period: " + pluralize(upcomingPeriod, "day");
+        upcomingStyle = "";
+    }
+    const upcomingTag = document.getElementById("viewUpcomingPeriod");
+    upcomingTag.innerHTML = upcomingText;
+    upcomingTag.style.display = upcomingStyle;
+    let graceText;
+    let graceStyle;
+    if (gracePeriod === null) {
+        graceText = "";
+        graceStyle = "none";
+    } else {
+        graceText = "Grace period: " + pluralize(gracePeriod, "day");
+        graceStyle = "";
+    }
+    const graceTag = document.getElementById("viewGracePeriod");
+    graceTag.innerHTML = graceText;
+    graceTag.style.display = graceStyle;
     let monthsText;
     let monthsStyle;
     if (activeMonths === null) {
