@@ -3,6 +3,7 @@ const newCategoryName = "New Category";
 const rootCategoryName = "Top Level";
 const pageIds = ["viewPlannerItems", "editTask", "viewTask"];
 const secondsPerDay = 60 * 60 * 24;
+const monthAmount = 12;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const statusColors = {
     neverCompleted: "#4444FF",
@@ -592,10 +593,7 @@ class Task extends PlannerItem {
             return;
         }
         const completionDate = this.getLastCompletionDate();
-        if (completionDate === null) {
-            return;
-        }
-        this.dueDate = addDaysToDate(completionDate, this.frequency);
+        this.dueDate = calculateDueDate(this.frequency, this.activeMonths, completionDate);
         this.handleDueDateChange();
     }
     
@@ -879,6 +877,38 @@ const handleScheduleTypeChange = () => {
     updateEditDueDate();
 };
 
+const dateIsInActiveMonth = (date, activeMonths) => activeMonths[date.month - 1];
+
+const advanceDateMonth = (date) => {
+    let { year } = date;
+    let month = date.month + 1;
+    if (month > monthAmount) {
+        year += 1;
+        month = 1;
+    }
+    return { year, month, day: 1 };
+};
+
+const calculateDueDate = (frequency, activeMonths, lastCompletionDate) => {
+    if (lastCompletionDate === null) {
+        return getCurrentDate();
+    }
+    if (activeMonths === null) {
+        return addDaysToDate(lastCompletionDate, frequency);
+    }
+    if (activeMonths.every((monthIsActive) => !monthIsActive)) {
+        return getCurrentDate();
+    }
+    let date = lastCompletionDate;
+    for (let count = 0; count < frequency; count += 1) {
+        date = addDaysToDate(date, 1);
+        while (!dateIsInActiveMonth(date, activeMonths)) {
+            date = advanceDateMonth(date);
+        }
+    }
+    return date;
+};
+
 const updateEditDueDate = () => {
     const scheduleType = document.getElementById("scheduleType").value;
     if (scheduleType === "noDueDate") {
@@ -894,10 +924,9 @@ const updateEditDueDate = () => {
     if (Number.isNaN(frequency)) {
         return;
     }
+    const activeMonths = getEditActiveMonths();
     const completionDate = currentTask?.getLastCompletionDate() ?? null;
-    const dueDate = (completionDate === null)
-        ? getCurrentDate()
-        : addDaysToDate(completionDate, frequency);
+    const dueDate = calculateDueDate(frequency, activeMonths, completionDate);
     dueDateTag.value = convertDateToString(dueDate);
 };
 
@@ -905,6 +934,18 @@ const getEditParentContainer = () => {
     const selectTag = document.getElementById("editParentCategory");
     const parentIndex = parseInt(selectTag.value, 10);
     return (parentIndex < 0) ? rootContainer : allCategories[parentIndex].container;
+};
+
+const getEditActiveMonths = () => {
+    const activeMonths = [];
+    let hasInactiveMonth = false;
+    for (const checkbox of activeMonthCheckboxes) {
+        activeMonths.push(checkbox.checked);
+        if (!checkbox.checked) {
+            hasInactiveMonth = true;
+        }
+    }
+    return hasInactiveMonth ? activeMonths : null;
 };
 
 const saveTask = () => {
@@ -943,17 +984,7 @@ const saveTask = () => {
         }
         dueDate = convertStringToDate(dateString);
     }
-    let activeMonths = [];
-    let hasInactiveMonth = false;
-    for (const checkbox of activeMonthCheckboxes) {
-        activeMonths.push(checkbox.checked);
-        if (!checkbox.checked) {
-            hasInactiveMonth = true;
-        }
-    }
-    if (!hasInactiveMonth) {
-        activeMonths = null;
-    }
+    const activeMonths = getEditActiveMonths();
     const notes = document.getElementById("editTaskNotes").value;
     const parentContainer = getEditParentContainer();
     if (currentTask === null) {
@@ -1101,6 +1132,7 @@ const initializePage = () => {
         divTag.appendChild(document.createElement("br"));
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
+        checkbox.onchange = updateEditDueDate;
         divTag.appendChild(checkbox);
         activeMonthCheckboxes.push(checkbox);
         monthsTag.appendChild(divTag);
