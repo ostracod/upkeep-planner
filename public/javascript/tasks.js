@@ -19,6 +19,7 @@ let rootContainer;
 let allCategories;
 let currentTask;
 let activeMonthCheckboxes;
+let lastTimerEventDate = null;
 
 const pluralize = (amount, noun) => (
     (amount === 1) ? `${amount} ${noun}` : `${amount} ${noun}s`
@@ -304,11 +305,17 @@ class Container {
         }
         return output;
     }
+    
+    updateStatusCircles() {
+        for (const plannerItem of this.plannerItems) {
+            plannerItem.updateStatusCircles();
+        }
+    }
 }
 
 class PlannerItem {
     // Concrete subclasses of PlannerItem must implement these methods:
-    // createTag
+    // createTag, updateStatusCircles
     
     constructor(name) {
         this.name = name;
@@ -572,6 +579,10 @@ class Task extends PlannerItem {
         this.statusCircle.style.background = this.getStatusCircleColor();
     }
     
+    updateStatusCircles() {
+        this.updateStatusCircle();
+    }
+    
     displayCompletions() {
         const completionsTag = document.getElementById("pastCompletions");
         completionsTag.innerHTML = "";
@@ -806,6 +817,10 @@ class Category extends PlannerItem {
             const child = children[offset];
             parentContainer.addItem(child, index + offset);
         }
+    }
+    
+    updateStatusCircles() {
+        this.container.updateStatusCircles();
     }
 }
 
@@ -1240,6 +1255,14 @@ const addRootCategory = () => {
     rootContainer.addItem(category);
 };
 
+const timerEvent = () => {
+    const currentDate = getCurrentDate();
+    if (lastTimerEventDate === null || subtractDates(lastTimerEventDate, currentDate) !== 0) {
+        rootContainer.updateStatusCircles();
+        lastTimerEventDate = currentDate;
+    }
+};
+
 const initializePage = () => {
     keyHash = localStorage.getItem("keyHash");
     if (keyHash === null) {
@@ -1284,6 +1307,7 @@ const initializePage = () => {
             tag.style.background = color;
         }
     }
+    setInterval(timerEvent, 1000);
 };
 
 
