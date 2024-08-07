@@ -4,14 +4,14 @@
         <button onclick="startTaskCreation();">Add Task</button><button onclick="addRootCategory();">Add Category</button>
     </p>
     <p>Legend:</p>
-    <div style="line-height: 22px;">
-        <div id="neverCompletedLegend" class="statusCircle inlineCircle"></div> = Never completed<br />
-        <div id="completedLegend" class="statusCircle inlineCircle"></div> = Completed<br />
-        <div id="upcomingLegend" class="statusCircle inlineCircle"></div> = Due date is upcoming<br />
-        <div id="graceLegend" class="statusCircle inlineCircle"></div> = Grace period after due date<br />
-        <div id="overdueLegend" class="statusCircle inlineCircle"></div> = Overdue<br />
-        <div id="inactiveLegend" class="statusCircle inlineCircle"></div> = Out of season
-    </div>
+    <p style="line-height: 22px;">
+        <span name="neverCompletedCircle" class="statusCircle inlineCircle"></span> = Never completed<br />
+        <span name="completedCircle" class="statusCircle inlineCircle"></span> = Completed<br />
+        <span name="upcomingCircle" class="statusCircle inlineCircle"></span> = Due date is upcoming<br />
+        <span name="graceCircle" class="statusCircle inlineCircle"></span> = Grace period after due date<br />
+        <span name="overdueCircle" class="statusCircle inlineCircle"></span> = Overdue<br />
+        <span name="inactiveCircle" class="statusCircle inlineCircle"></span> = Out of season
+    </p>
 </div>
 <div id="editTask" style="display: none;">
     <p>
@@ -33,6 +33,16 @@
         <span id="isManualContainer">
             <input id="dueDateIsManual" type="checkbox" onchange="updateEditDueDate();" /> Manual override
         </span>
+    </p>
+    <p>
+        <input id="hasUpcomingPeriod" type="checkbox" onchange="handleUpcomingPeriodChange();" />
+        <span name="upcomingCircle" class="statusCircle inlineCircle"></span> <span id="upcomingPeriodLabel"></span>
+        <span id="editUpcomingContainer"><input id="editUpcomingPeriod" style="width: 80px;" /> days</span>
+    </p>
+    <p>
+        <input id="hasGracePeriod" type="checkbox" onchange="handleGracePeriodChange();" />
+        <span name="graceCircle" class="statusCircle inlineCircle"></span> <span id="gracePeriodLabel"></span>
+        <span id="editGraceContainer"><input id="editGracePeriod" style="width: 80px;" /> days</span>
     </p>
     <p>Active months:</p>
     <div id="editActiveMonths" style="display: flex; align-items: center;"></div>

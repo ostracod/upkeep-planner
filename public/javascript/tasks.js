@@ -441,11 +441,22 @@ class PlannerItem {
 
 class Task extends PlannerItem {
     
-    constructor(name, frequency, dueDate, dueDateIsManual, activeMonths, notes) {
+    constructor(
+        name,
+        frequency,
+        dueDate,
+        dueDateIsManual,
+        upcomingPeriod,
+        gracePeriod,
+        activeMonths,
+        notes,
+    ) {
         super(name);
         this.frequency = frequency;
         this.dueDate = dueDate;
         this.dueDateIsManual = dueDateIsManual;
+        this.upcomingPeriod = upcomingPeriod;
+        this.gracePeriod = gracePeriod;
         this.activeMonths = activeMonths;
         this.notes = notes;
         this.completions = [];
@@ -533,12 +544,19 @@ class Task extends PlannerItem {
     
     getStatusCircleColor() {
         const currentDate = getCurrentDate();
-        if (this.dueDate !== null) {
-            const dueDateOffset = subtractDates(currentDate, this.dueDate);
+        const dueDateOffset = (this.dueDate === null)
+            ? null
+            : subtractDates(currentDate, this.dueDate);
+        if (dueDateOffset !== null) {
             if (dueDateOffset >= 0) {
                 return statusColors.overdue;
             }
+            // TODO: Add grace status.
         }
+        if (!dateIsInActiveMonth(currentDate, this.activeMonths)) {
+            return statusColors.inactive;
+        }
+        // TODO: Add upcoming status.
         const completionDate = this.getLastCompletionDate();
         if (completionDate === null) {
             return statusColors.neverCompleted;
@@ -829,6 +847,12 @@ const startTaskCreation = (parentCategory = null) => {
     document.getElementById("dueDateIsManual").checked = false;
     document.getElementById("scheduleType").value = "noDueDate";
     handleScheduleTypeChange();
+    document.getElementById("hasUpcomingPeriod").checked = false;
+    document.getElementById("editUpcomingPeriod").value = "";
+    handleUpcomingPeriodChange();
+    document.getElementById("hasGracePeriod").checked = false;
+    document.getElementById("editGracePeriod").value = "";
+    handleGracePeriodChange();
     setAllActiveMonths(true);
     updateCategoryOptions(parentCategory);
     document.getElementById("editTaskNotes").value = "";
@@ -852,6 +876,15 @@ const startTaskEdit = () => {
     }
     document.getElementById("scheduleType").value = scheduleType;
     handleScheduleTypeChange();
+    const { upcomingPeriod, gracePeriod } = currentTask;
+    const hasUpcomingPeriod = (upcomingPeriod !== null);
+    document.getElementById("hasUpcomingPeriod").checked = hasUpcomingPeriod;
+    document.getElementById("editUpcomingPeriod").value = hasUpcomingPeriod ? upcomingPeriod : "";
+    handleUpcomingPeriodChange();
+    const hasGracePeriod = (gracePeriod !== null);
+    document.getElementById("hasGracePeriod").checked = hasGracePeriod;
+    document.getElementById("editGracePeriod").value = hasGracePeriod ? gracePeriod : "";
+    handleGracePeriodChange();
     const { activeMonths } = currentTask;
     if (activeMonths === null) {
         setAllActiveMonths(true);
@@ -877,7 +910,9 @@ const handleScheduleTypeChange = () => {
     updateEditDueDate();
 };
 
-const dateIsInActiveMonth = (date, activeMonths) => activeMonths[date.month - 1];
+const dateIsInActiveMonth = (date, activeMonths) => (
+    (activeMonths === null) ? true : activeMonths[date.month - 1]
+);
 
 const advanceDateMonth = (date) => {
     let { year } = date;
@@ -928,6 +963,32 @@ const updateEditDueDate = () => {
     const completionDate = currentTask?.getLastCompletionDate() ?? null;
     const dueDate = calculateDueDate(frequency, activeMonths, completionDate);
     dueDateTag.value = convertDateToString(dueDate);
+};
+
+const handleUpcomingPeriodChange = () => {
+    let labelText = "Upcoming period";
+    let displayStyle;
+    if (document.getElementById("hasUpcomingPeriod").checked) {
+        labelText += ":";
+        displayStyle = "";
+    } else {
+        displayStyle = "none";
+    }
+    document.getElementById("upcomingPeriodLabel").innerHTML = labelText;
+    document.getElementById("editUpcomingContainer").style.display = displayStyle;
+};
+
+const handleGracePeriodChange = () => {
+    let labelText = "Grace period";
+    let displayStyle;
+    if (document.getElementById("hasGracePeriod").checked) {
+        labelText += ":";
+        displayStyle = "";
+    } else {
+        displayStyle = "none";
+    }
+    document.getElementById("gracePeriodLabel").innerHTML = labelText;
+    document.getElementById("editGraceContainer").style.display = displayStyle;
 };
 
 const getEditParentContainer = () => {
@@ -984,11 +1045,44 @@ const saveTask = () => {
         }
         dueDate = convertStringToDate(dateString);
     }
+    let upcomingPeriod;
+    if (document.getElementById("hasUpcomingPeriod").checked) {
+        const periodTag = document.getElementById("editUpcomingPeriod");
+        upcomingPeriod = parseInt(periodTag.value, 10);
+        if (Number.isNaN(upcomingPeriod)) {
+            alert("Please enter an upcoming period duration.");
+            periodTag.focus();
+            return;
+        }
+    } else {
+        upcomingPeriod = null;
+    }
+    let gracePeriod;
+    if (document.getElementById("hasGracePeriod").checked) {
+        const periodTag = document.getElementById("editGracePeriod");
+        gracePeriod = parseInt(periodTag.value, 10);
+        if (Number.isNaN(gracePeriod)) {
+            alert("Please enter a grace period duration.");
+            periodTag.focus();
+            return;
+        }
+    } else {
+        gracePeriod = null;
+    }
     const activeMonths = getEditActiveMonths();
     const notes = document.getElementById("editTaskNotes").value;
     const parentContainer = getEditParentContainer();
     if (currentTask === null) {
-        const task = new Task(name, frequency, dueDate, dueDateIsManual, activeMonths, notes);
+        const task = new Task(
+            name,
+            frequency,
+            dueDate,
+            dueDateIsManual,
+            upcomingPeriod,
+            gracePeriod,
+            activeMonths,
+            notes,
+        );
         parentContainer.addItem(task);
         viewPlannerItems();
     } else {
@@ -996,6 +1090,8 @@ const saveTask = () => {
         currentTask.frequency = frequency;
         currentTask.dueDate = dueDate;
         currentTask.dueDateIsManual = dueDateIsManual;
+        currentTask.upcomingPeriod = upcomingPeriod;
+        currentTask.gracePeriod = gracePeriod;
         currentTask.activeMonths = activeMonths;
         currentTask.notes = notes;
         if (currentTask.parentContainer !== parentContainer) {
@@ -1155,7 +1251,10 @@ const initializePage = () => {
     monthsTag.appendChild(buttonsTag);
     for (const name in statusColors) {
         const color = statusColors[name];
-        document.getElementById(name + "Legend").style.background = color;
+        const tags = document.getElementsByName(name + "Circle");
+        for (const tag of tags) {
+            tag.style.background = color;
+        }
     }
 };
 
