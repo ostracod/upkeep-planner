@@ -21,7 +21,7 @@ const changePassword = async () => {
         confirmPasswordTag.focus();
         return;
     }
-    const response1 = await (await fetch("/getSalts")).json();
+    const response1 = await (await fetch("/getSalts", { method: "POST" })).json();
     if (!response1.success) {
         alert(response1.message);
         return;

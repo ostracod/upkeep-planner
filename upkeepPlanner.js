@@ -23,13 +23,14 @@ const viewsPath = pathUtils.join(projectPath, "views");
 const isDevMode = (process.env.NODE_ENV === "development");
 
 const levelDb = new Level(databasePath, { valueEncoding: "json" });
+// Map from username to job queue.
+const accountQueueMap = new Map();
 
 const getAccountKey = (username) => "account_" + username;
 
 const levelGetSafe = async (key) => {
     try {
         return await levelDb.get(key);
-        return true;
     } catch (error) {
         if (error.code === "LEVEL_NOT_FOUND") {
             return null;
@@ -51,16 +52,6 @@ const getUsername = (req) => {
 };
 
 const hasLoggedIn = (req) => (getUsername(req) !== null);
-
-const getAccount = async (req, res) => {
-    const username = getUsername(req);
-    if (username === null) {
-        res.json({ success: false, message: "You are not currently logged in." });
-        return null
-    }
-    const accountKey = getAccountKey(req.session.username);
-    return await levelDb.get(accountKey);
-};
 
 const putAccount = async (account) => {
     const accountKey = getAccountKey(account.username);
@@ -87,7 +78,68 @@ const checkAuthentication = (req, res) => {
     return false;
 };
 
+const getAccountQueue = (username) => {
+    let queue = accountQueueMap.get(username);
+    if (typeof queue === "undefined") {
+        queue = { jobs: [], currentSymbol: null };
+        accountQueueMap.set(username, queue);
+    }
+    return queue;
+}
+
+const runAccountFunc = (req, res, func) => new Promise((resolve, reject) => {
+    const username = getUsername(req);
+    if (username === null) {
+        res.json({ success: false, message: "You are not currently logged in." });
+        return null;
+    }
+    const jobSymbol = Symbol();
+    const finishJob = () => {
+        const queue = getAccountQueue(username);
+        if (queue.currentSymbol === jobSymbol) {
+            queue.currentSymbol = null;
+        }
+        startNextAccountJob(username);
+    };
+    const wrappedFunc = async () => {
+        const timeout = setTimeout(finishJob, 30 * 1000);
+        const accountKey = getAccountKey(username);
+        const account = await levelDb.get(accountKey);
+        try {
+            await func(account);
+            resolve();
+        } catch (error) {
+            reject(error);
+        }
+        clearTimeout(timeout);
+        finishJob();
+    };
+    getAccountQueue(username).jobs.push({ func: wrappedFunc, symbol: jobSymbol });
+    startNextAccountJob(username);
+});
+
+const startNextAccountJob = (username) => {
+    const queue = getAccountQueue(username);
+    if (queue.jobs.length <= 0) {
+        accountQueueMap.delete(username);
+        return;
+    }
+    if (queue.currentSymbol === null) {
+        const job = queue.jobs.shift();
+        queue.currentSymbol = job.symbol;
+        job.func();
+    }
+};
+
 const router = express.Router();
+
+const createAccountEndpoint = (path, handler) => {
+    router.post(path, async (req, res) => {
+        await runAccountFunc(req, res, async (account) => {
+            await handler(req, res, account);
+        });
+    });
+};
 
 router.get("/bcrypt.min.js", (req, res) => {
     const path = pathUtils.join(
@@ -138,7 +190,6 @@ router.post("/createAccountAction", async (req, res) => {
         keySalt,
         authHashHash,
         emailAddress,
-        nextTaskId: 0,
         changeNumber: 0,
     });
     res.json({ success: true });
@@ -211,19 +262,28 @@ router.get("/changePassword", (req, res) => {
     );
 });
 
-router.get("/getSalts", async (req, res) => {
-    const account = await getAccount(req, res);
-    if (account === null) {
-        return;
-    }
+const sleep = (duration) => new Promise((resolve) => {
+    setTimeout(resolve, duration * 1000);
+});
+
+const createTestEndpoint = (path, duration) => {
+    createAccountEndpoint(path, async (req, res, account) => {
+        const { id } = req.body;
+        console.log(`${account.username} request ${id} started!`);
+        await sleep(duration);
+        console.log(`${account.username} request ${id} ended!`);
+        res.json({ success: true, id });
+    });
+};
+
+createTestEndpoint("/test1", 3);
+createTestEndpoint("/test2", 31);
+
+createAccountEndpoint("/getSalts", (req, res, account) => {
     res.json({ success: true, authSalt: account.authSalt, keySalt: account.keySalt });
 });
 
-router.post("/changePasswordAction", async (req, res) => {
-    const account = await getAccount(req, res);
-    if (account === null) {
-        return;
-    }
+createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
     const { oldAuthHash, newAuthSalt, newKeySalt, newAuthHash } = req.body;
     const hashMatches = await bcrypt.compare(oldAuthHash, account.authHashHash);
     if (!hashMatches) {
