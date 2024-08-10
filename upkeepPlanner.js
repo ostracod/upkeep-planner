@@ -187,10 +187,11 @@ router.post("/createAccountAction", async (req, res) => {
     await putAccount({
         username,
         authSalt,
-        keySalt,
         authHashHash,
+        keySalt,
+        keyVersion: 0,
         emailAddress,
-        changeNumber: 0,
+        chunksVersion: 0,
     });
     res.json({ success: true });
 });
@@ -229,7 +230,7 @@ router.post("/loginAction", async (req, res) => {
         return;
     }
     req.session.username = username;
-    res.json({ success: true, keySalt: account.keySalt });
+    res.json({ success: true, keySalt: account.keySalt, keyVersion: account.keyVersion });
 });
 
 router.get("/logout", (req, res) => {
@@ -284,7 +285,7 @@ createAccountEndpoint("/getSalts", (req, res, account) => {
 });
 
 createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
-    const { oldAuthHash, newAuthSalt, newKeySalt, newAuthHash } = req.body;
+    const { oldAuthHash, newAuthSalt, newAuthHash, newKeySalt } = req.body;
     const hashMatches = await bcrypt.compare(oldAuthHash, account.authHashHash);
     if (!hashMatches) {
         res.json({
@@ -294,11 +295,13 @@ createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
         return;
     }
     account.authSalt = newAuthSalt;
-    account.keySalt = newKeySalt;
     account.authHashHash = await bcrypt.hash(newAuthHash, 10);
-    account.changeNumber += 1;
+    account.keySalt = newKeySalt;
+    account.keyVersion += 1;
+    // TODO: Update chunks.
+    account.chunksVersion += 1;
     await putAccount(account);
-    res.json({ success: true });
+    res.json({ success: true, keyVersion: account.keyVersion });
 });
 
 const expressApp = express();

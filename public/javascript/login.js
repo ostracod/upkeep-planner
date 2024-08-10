@@ -34,9 +34,9 @@ const logIn = async () => {
         alert(response2.message);
         return;
     }
-    const { keySalt } = response2;
+    const { keySalt, keyVersion } = response2;
     const keyHash = await dcodeIO.bcrypt.hash(password, keySalt);
-    localStorage.setItem("keyHash", keyHash);
+    localStorage.setItem("keyData", JSON.stringify({ keyHash, keyVersion }));
     window.location = "/tasks";
 };
 

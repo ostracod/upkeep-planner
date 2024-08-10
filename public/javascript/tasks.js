@@ -15,6 +15,7 @@ const statusColors = {
 };
 
 let keyHash;
+let keyVersion;
 let rootContainer;
 let allCategories;
 let currentTask;
@@ -1264,11 +1265,12 @@ const timerEvent = () => {
 };
 
 const initializePage = () => {
-    keyHash = localStorage.getItem("keyHash");
-    if (keyHash === null) {
+    const keyData = localStorage.getItem("keyData");
+    if (keyData === null) {
         alert("You are not currently logged in. Please log in to view your tasks.");
         window.location = "/login";
     }
+    ({ keyHash, keyVersion } = JSON.parse(keyData));
     rootContainer = new Container(document.getElementById("rootContainer"));
     const monthsTag = document.getElementById("editActiveMonths");
     activeMonthCheckboxes = [];

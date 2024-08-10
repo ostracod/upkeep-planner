@@ -26,19 +26,21 @@ const changePassword = async () => {
         alert(response1.message);
         return;
     }
-    const { authSalt: oldAuthSalt, keySalt, oldKeySalt } = response1;
+    const { authSalt: oldAuthSalt, keySalt: oldKeySalt } = response1;
     const oldAuthHash = await dcodeIO.bcrypt.hash(oldPassword, oldAuthSalt);
+    const oldKeyHash = await dcodeIO.bcrypt.hash(oldPassword, oldKeySalt);
     const newAuthSalt = await dcodeIO.bcrypt.genSalt(10);
-    const newKeySalt = await dcodeIO.bcrypt.genSalt(10);
     const newAuthHash = await dcodeIO.bcrypt.hash(newPassword, newAuthSalt);
+    const newKeySalt = await dcodeIO.bcrypt.genSalt(10);
+    const newKeyHash = await dcodeIO.bcrypt.hash(newPassword, newKeySalt);
     const response2 = await (await fetch("/changePasswordAction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             oldAuthHash,
             newAuthSalt,
-            newKeySalt,
             newAuthHash,
+            newKeySalt,
             // TODO: Send re-encrypted chunks in this request.
         }),
     })).json();
@@ -46,6 +48,9 @@ const changePassword = async () => {
         alert(response2.message);
         return;
     }
+    const newKeyVersion = response2.keyVersion;
+    const keyData = JSON.stringify({ keyHash: newKeyHash, keyVersion: newKeyVersion });
+    localStorage.setItem("keyData", keyData);
     alert("Your password was changed successfully.");
     window.location = "/tasks";
 };
