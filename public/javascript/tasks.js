@@ -1,7 +1,7 @@
 
 const newCategoryName = "New Category";
 const rootCategoryName = "Top Level";
-const pageIds = ["viewPlannerItems", "editTask", "viewTask"];
+const pageIds = ["loadingScreen", "viewPlannerItems", "editTask", "viewTask"];
 const secondsPerDay = 60 * 60 * 24;
 const monthAmount = 12;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -14,6 +14,8 @@ const statusColors = {
     inactive: "#CCCCCC",
 };
 
+const requestFuncQueue = [];
+let requestIsRunning = false;
 let keyHash;
 let keyVersion;
 let rootContainer;
@@ -86,6 +88,54 @@ const createButtons = (buttonDefs) => {
         buttonTags.push(button);
     }
     return { divTag, buttonTags };
+};
+
+const makeRequest = async (path, data) => {
+    return await (await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    })).json();
+};
+
+const checkRequestQueue = () => {
+    if (!requestIsRunning && requestFuncQueue.length > 0) {
+        const requestFunc = requestFuncQueue.shift();
+        requestIsRunning = true;
+        requestFunc();
+    }
+};
+
+const dispatchRequest = (requestFunc) => new Promise((resolve, reject) => {
+    const wrappedFunc = async () => {
+        let result;
+        try {
+            result = await requestFunc();
+        } catch (error) {
+            reject(error);
+            return;
+        }
+        requestIsRunning = false;
+        checkRequestQueue();
+        resolve(result);
+    };
+    requestFuncQueue.push(wrappedFunc);
+    checkRequestQueue();
+});
+
+const getChunks = async (names) => {
+    return await dispatchRequest(async () => {
+        const response = await makeRequest("/getChunks", { names });
+        if (response.keyVersion !== keyVersion) {
+            throw new Error("Your client data is stale. Please reload this page.");
+        }
+        const output = {};
+        for (const name of names) {
+            const chunk = response.chunks[name];
+            output[name] = (chunk === null) ? null : decryptChunk(chunk);
+        }
+        return output;
+    });
 };
 
 class Completion {
@@ -831,6 +881,11 @@ const showPage = (idToShow) => {
     }
 }
 
+const showLoadingScreen = (message) => {
+    showPage("loadingScreen");
+    document.getElementById("loadMessage").innerHTML = message;
+};
+
 const updateCategoryOptions = (categoryToSelect) => {
     allCategories = rootContainer.getAllCategories();
     const selectTag = document.getElementById("editParentCategory");
@@ -1264,13 +1319,14 @@ const timerEvent = () => {
     }
 };
 
-const initializePage = () => {
+const initializePage = async () => {
     const keyData = localStorage.getItem("keyData");
     if (keyData === null) {
         alert("You are not currently logged in. Please log in to view your tasks.");
         window.location = "/login";
     }
     ({ keyHash, keyVersion } = JSON.parse(keyData));
+    showLoadingScreen("Loading tasks...");
     rootContainer = new Container(document.getElementById("rootContainer"));
     const monthsTag = document.getElementById("editActiveMonths");
     activeMonthCheckboxes = [];
@@ -1309,6 +1365,10 @@ const initializePage = () => {
             tag.style.background = color;
         }
     }
+    const chunks = await getChunks(["plannerItems", "recentCompletions"]);
+    // TODO: Use the chunks.
+    console.log(chunks);
+    viewPlannerItems();
     setInterval(timerEvent, 1000);
 };
 

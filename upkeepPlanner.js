@@ -246,7 +246,7 @@ router.get("/tasks", (req, res) => {
         res,
         "tasks.html",
         {
-            scripts: ["/javascript/tasks.js"],
+            scripts: ["/javascript/chunk.js", "/javascript/tasks.js"],
             stylesheets: ["/stylesheets/tasks.css"],
         },
     );
@@ -259,7 +259,13 @@ router.get("/changePassword", (req, res) => {
     renderPage(
         res,
         "changePassword.html",
-        { scripts: ["/bcrypt.min.js", "/javascript/changePassword.js"] },
+        {
+            scripts: [
+                "/bcrypt.min.js",
+                "/javascript/chunk.js",
+                "/javascript/changePassword.js",
+            ],
+        },
     );
 });
 
@@ -302,6 +308,19 @@ createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
     account.chunksVersion += 1;
     await putAccount(account);
     res.json({ success: true, keyVersion: account.keyVersion });
+});
+
+createAccountEndpoint("/getChunks", async (req, res, account) => {
+    const chunks = {};
+    for (const name of req.body.names) {
+        // TODO: Actually load the data.
+        chunks[name] = null;
+    }
+    res.json({
+        success: true,
+        keyVersion: account.keyVersion,
+        chunks,
+    });
 });
 
 const expressApp = express();
