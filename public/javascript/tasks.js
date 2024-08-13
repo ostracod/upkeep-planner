@@ -18,6 +18,7 @@ const requestFuncQueue = [];
 let requestIsRunning = false;
 let keyHash;
 let keyVersion;
+let encryption;
 let rootContainer;
 let allCategories;
 let currentTask;
@@ -132,7 +133,7 @@ const getChunks = async (names) => {
         const output = {};
         for (const name of names) {
             const chunk = response.chunks[name];
-            output[name] = (chunk === null) ? null : decryptChunk(chunk);
+            output[name] = (chunk === null) ? null : decryptChunk(chunk, encryption);
         }
         return output;
     });
@@ -1325,8 +1326,9 @@ const initializePage = async () => {
         alert("You are not currently logged in. Please log in to view your tasks.");
         window.location = "/login";
     }
-    ({ keyHash, keyVersion } = JSON.parse(keyData));
     showLoadingScreen("Loading tasks...");
+    ({ keyHash, keyVersion } = JSON.parse(keyData));
+    encryption = await getEncryption(keyHash);
     rootContainer = new Container(document.getElementById("rootContainer"));
     const monthsTag = document.getElementById("editActiveMonths");
     activeMonthCheckboxes = [];
