@@ -1,4 +1,6 @@
 
+const ivLength = 16;
+
 const convertTextToBuffer = (text) => {
     const textEncoder = new TextEncoder("utf-8");
     return textEncoder.encode(text).buffer;
@@ -29,42 +31,50 @@ const convertBufferToBase64 = (buffer) => {
     return btoa(binText);
 };
 
-const getEncryption = async (passwordText) => {
+const concatenateBuffers = (buffer1, buffer2) => {
+    const byteArray = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
+    byteArray.set(new Uint8Array(buffer1), 0);
+    byteArray.set(new Uint8Array(buffer2), buffer1.byteLength);
+    return byteArray.buffer;
+};
+
+const getEncryptionKey = async (passwordText) => {
     const passwordBuffer = convertTextToBuffer(passwordText);
     const keyBuffer = await crypto.subtle.digest("SHA-256", passwordBuffer);
-    const key = await crypto.subtle.importKey(
+    return await crypto.subtle.importKey(
         "raw",
         keyBuffer,
         { name: "AES-GCM" },
         false,
         ["encrypt", "decrypt"],
     );
-    const ivBuffer = new ArrayBuffer(16);
-    crypto.getRandomValues(new Uint8Array(ivBuffer));
-    const aesAlgorithm = { name: "AES-GCM", iv: ivBuffer, tagLength: 128 };
-    return { key, aesAlgorithm };
 };
 
-const decryptChunk = async (chunk, encryption) => {
-    const encryptedBuffer = convertBase64ToBuffer(chunk);
+const encryptChunk = async (chunk, encryptionKey) => {
+    const ivBuffer = new ArrayBuffer(ivLength);
+    crypto.getRandomValues(new Uint8Array(ivBuffer));
+    const inputText = JSON.stringify(chunk);
+    const inputBuffer = convertTextToBuffer(inputText);
+    const encryptedBuffer = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: ivBuffer, tagLength: 128 },
+        encryptionKey,
+        inputBuffer,
+    );
+    const bufferWithHeader = concatenateBuffers(ivBuffer, encryptedBuffer);
+    return convertBufferToBase64(bufferWithHeader);
+};
+
+const decryptChunk = async (chunk, encryptionKey) => {
+    const bufferWithHeader = convertBase64ToBuffer(chunk);
+    const ivBuffer = bufferWithHeader.slice(0, ivLength);
+    const encryptedBuffer = bufferWithHeader.slice(ivLength, bufferWithHeader.length);
     const decryptedBuffer = await crypto.subtle.decrypt(
-        encryption.aesAlgorithm,
-        encryption.key,
+        { name: "AES-GCM", iv: ivBuffer, tagLength: 128 },
+        encryptionKey,
         encryptedBuffer,
     );
     const decryptedText = convertBufferToText(decryptedBuffer);
     return JSON.parse(decryptedText);
-};
-
-const encryptChunk = async (chunk, encryption) => {
-    const inputText = JSON.stringify(chunk);
-    const inputBuffer = convertTextToBuffer(inputText);
-    const encryptedBuffer = await crypto.subtle.encrypt(
-        encryption.aesAlgorithm,
-        encryption.key,
-        inputBuffer,
-    );
-    return convertBufferToBase64(encryptedBuffer);
 };
 
 

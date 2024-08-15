@@ -18,7 +18,7 @@ const requestFuncQueue = [];
 let requestIsRunning = false;
 let keyHash;
 let keyVersion;
-let encryption;
+let encryptionKey;
 let rootContainer;
 let allCategories;
 let currentTask;
@@ -133,10 +133,28 @@ const getChunks = async (names) => {
         const output = {};
         for (const name of names) {
             const chunk = response.chunks[name];
-            output[name] = (chunk === null) ? null : decryptChunk(chunk, encryption);
+            output[name] = (chunk === null) ? null : await decryptChunk(chunk, encryptionKey);
         }
         return output;
     });
+};
+
+const setChunks = async (chunks) => {
+    const encryptedChunks = {};
+    for (const name in chunks) {
+        const chunk = chunks[name];
+        encryptedChunks[name] = await encryptChunk(chunk, encryptionKey);
+    }
+    await dispatchRequest(async () => {
+        const response = await makeRequest("/setChunks", { chunks: encryptedChunks });
+        // TODO: Read the response.
+        
+    });
+};
+
+const savePlannerItems = async () => {
+    const data = rootContainer.toJson();
+    await setChunks({ plannerItems: data });
 };
 
 class Completion {
@@ -363,11 +381,17 @@ class Container {
             plannerItem.updateStatusCircles();
         }
     }
+    
+    toJson() {
+        return {
+            plannerItems: this.plannerItems.map((plannerItem) => plannerItem.toJson()),
+        };
+    }
 }
 
 class PlannerItem {
     // Concrete subclasses of PlannerItem must implement these methods:
-    // createTag, updateStatusCircles
+    // createTag, updateStatusCircles, toJson
     
     constructor(name) {
         this.name = name;
@@ -460,6 +484,7 @@ class PlannerItem {
         const container = this.parentContainer;
         this.remove();
         container.addItem(this, nextIndex);
+        savePlannerItems();
     }
     
     moveDown() {
@@ -470,6 +495,7 @@ class PlannerItem {
         }
         this.remove();
         container.addItem(this, nextIndex);
+        savePlannerItems();
     }
     
     enterCategory() {
@@ -484,6 +510,7 @@ class PlannerItem {
         }
         this.remove();
         nextItem.addItem(this, 0);
+        savePlannerItems();
     }
     
     exitCategory() {
@@ -495,6 +522,7 @@ class PlannerItem {
         const index = container.findItem(parentPlannerItem);
         this.remove();
         container.addItem(this, index);
+        savePlannerItems();
     }
 }
 
@@ -746,6 +774,20 @@ class Task extends PlannerItem {
         completion.parentTask = null;
         this.handleCompletionsChange();
     }
+    
+    toJson() {
+        return {
+            type: "task",
+            name: this.name,
+            frequency: this.frequency,
+            dueDate: this.dueDate,
+            dueDateIsManual: this.dueDateIsManual,
+            upcomingPeriod: this.upcomingPeriod,
+            gracePeriod: this.gracePeriod,
+            activeMonths: this.activeMonths,
+            notes: this.notes,
+        };
+    }
 }
 
 class Category extends PlannerItem {
@@ -834,6 +876,7 @@ class Category extends PlannerItem {
     addNewCategory() {
         const category = new Category(newCategoryName);
         this.addItem(category);
+        savePlannerItems();
     }
     
     startRename() {
@@ -848,6 +891,7 @@ class Category extends PlannerItem {
     finishRename() {
         this.setName(this.renameTag.value);
         this.hideRenameTags();
+        savePlannerItems();
     }
     
     hideRenameTags() {
@@ -869,10 +913,19 @@ class Category extends PlannerItem {
             const child = children[offset];
             parentContainer.addItem(child, index + offset);
         }
+        savePlannerItems();
     }
     
     updateStatusCircles() {
         this.container.updateStatusCircles();
+    }
+    
+    toJson() {
+        return {
+            type: "category",
+            name: this.name,
+            container: this.container.toJson(),
+        };
     }
 }
 
@@ -1177,6 +1230,7 @@ const saveTask = () => {
         currentTask.handleDueDateChange();
         viewTask();
     }
+    savePlannerItems();
 };
 
 const viewPlannerItems = () => {
@@ -1290,6 +1344,7 @@ const deleteTask = () => {
     if (shouldDelete) {
         currentTask.remove();
         viewPlannerItems();
+        savePlannerItems();
     }
 };
 
@@ -1310,6 +1365,7 @@ const saveNewCompletion = () => {
 const addRootCategory = () => {
     const category = new Category(newCategoryName);
     rootContainer.addItem(category);
+    savePlannerItems();
 };
 
 const timerEvent = () => {
@@ -1328,7 +1384,7 @@ const initializePage = async () => {
     }
     showLoadingScreen("Loading tasks...");
     ({ keyHash, keyVersion } = JSON.parse(keyData));
-    encryption = await getEncryption(keyHash);
+    encryptionKey = await getEncryptionKey(keyHash);
     rootContainer = new Container(document.getElementById("rootContainer"));
     const monthsTag = document.getElementById("editActiveMonths");
     activeMonthCheckboxes = [];

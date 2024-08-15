@@ -131,6 +131,13 @@ const startNextAccountJob = (username) => {
     }
 };
 
+const getChunkKey = (chunkName, username) => {
+    if (chunkName.indexOf("_") >= 0) {
+        throw new Error("Invalid chunk name.");
+    }
+    return `${chunkName}_${username}`;
+};
+
 const router = express.Router();
 
 const createAccountEndpoint = (path, handler) => {
@@ -313,14 +320,24 @@ createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
 createAccountEndpoint("/getChunks", async (req, res, account) => {
     const chunks = {};
     for (const name of req.body.names) {
-        // TODO: Actually load the data.
-        chunks[name] = null;
+        const chunkKey = getChunkKey(name, account.username);
+        chunks[name] = await levelGetSafe(chunkKey);
     }
     res.json({
         success: true,
         keyVersion: account.keyVersion,
         chunks,
     });
+});
+
+createAccountEndpoint("/setChunks", async (req, res, account) => {
+    const { chunks } = req.body;
+    for (const name in chunks) {
+        const chunk = chunks[name];
+        const chunkKey = getChunkKey(name, account.username);
+        await levelDb.put(chunkKey, chunk);
+    }
+    res.json({ success: true });
 });
 
 const expressApp = express();
