@@ -72,6 +72,10 @@ const subtractDates = (date1, date2) => {
     return timestampDelta / secondsPerDay;
 };
 
+const datesAreEqual = (date1, date2) => (
+    date1.year === date2.year && date1.month === date2.month && date1.day === date2.day
+);
+
 const addDaysToDate = (date, dayAmount) => {
     const timestamp = convertDateToTimestamp(date);
     return convertTimestampToDate(timestamp + secondsPerDay * dayAmount);
@@ -701,16 +705,47 @@ class Task extends PlannerItem {
         dueDateTag.style.display = displayStyle;
     }
     
-    checkDueDate() {
-        if (this.frequency === null || this.dueDate === null || this.dueDateIsManual) {
-            return;
-        }
-        const completionDate = this.getLastCompletionDate();
-        this.dueDate = calculateDueDate(this.frequency, this.activeMonths, completionDate);
-        this.handleDueDateChange();
+    // Should not be called if this.frequency is null.
+    calculateDueDate() {
+        return calculateDueDate(
+            this.frequency,
+            this.activeMonths,
+            this.getLastCompletionDate(),
+        );
     }
     
-    handleCompletionsChange() {
+    checkDueDate(addedNewCompletion) {
+        if (this.dueDate === null) {
+            return;
+        }
+        let dueDateHasChanged = false;
+        if (this.dueDateIsManual) {
+            const completionDate = this.getLastCompletionDate();
+            if ((completionDate !== null && subtractDates(completionDate, this.dueDate) >= 0)
+                    || addedNewCompletion) {
+                if (this.frequency === null) {
+                    this.dueDate = null;
+                    this.dueDateIsManual = null;
+                } else {
+                    this.dueDate = this.calculateDueDate();
+                    this.dueDateIsManual = false;
+                }
+                dueDateHasChanged = true;
+            }
+        } else if (this.frequency !== null) {
+            const nextDueDate = this.calculateDueDate();
+            if (!datesAreEqual(this.dueDate, nextDueDate)) {
+                this.dueDate = nextDueDate;
+                dueDateHasChanged = true;
+            }
+        }
+        if (dueDateHasChanged) {
+            this.handleDueDateChange();
+            savePlannerItems();
+        }
+    }
+    
+    handleCompletionsChange(addedNewCompletion = false) {
         this.completions.sort(
             (completion1, completion2) => completion1.timestamp - completion2.timestamp,
         );
@@ -719,7 +754,7 @@ class Task extends PlannerItem {
             this.displayCompletions();
         }
         this.updateStatusCircle();
-        this.checkDueDate();
+        this.checkDueDate(addedNewCompletion);
     }
     
     handleDueDateChange() {
@@ -731,22 +766,12 @@ class Task extends PlannerItem {
     }
     
     addCompletion(completion) {
-        if (this.dueDate !== null && this.dueDateIsManual) {
-            const lastDate = this.getLastCompletionDate();
-            if (lastDate === null || subtractDates(completion.date, lastDate) > 0) {
-                if (this.frequency === null) {
-                    this.dueDate = null;
-                    this.dueDateIsManual = null;
-                } else {
-                    this.dueDate = addDaysToDate(completion.date, this.frequency);
-                    this.dueDateIsManual = false;
-                }
-                this.handleDueDateChange();
-            }
-        }
+        const lastDate = this.getLastCompletionDate();
+        const completionIsNew = (lastDate === null
+            || subtractDates(completion.date, lastDate) > 0);
         this.completions.push(completion);
         completion.parentTask = this;
-        this.handleCompletionsChange();
+        this.handleCompletionsChange(completionIsNew);
     }
     
     getLastCompletion() {
@@ -760,7 +785,7 @@ class Task extends PlannerItem {
     markAsComplete() {
         const lastDate = this.getLastCompletionDate();
         const currentDate = getCurrentDate();
-        if (lastDate === null || subtractDates(currentDate, lastDate) !== 0) {
+        if (lastDate === null || !datesAreEqual(currentDate, lastDate)) {
             const completion = new Completion(currentDate, false, "");
             this.addCompletion(completion);
         } else {
@@ -780,11 +805,11 @@ class Task extends PlannerItem {
             type: "task",
             name: this.name,
             frequency: this.frequency,
-            dueDate: this.dueDate,
+            dueDate: (this.dueDate === null) ? null : { ...this.dueDate },
             dueDateIsManual: this.dueDateIsManual,
             upcomingPeriod: this.upcomingPeriod,
             gracePeriod: this.gracePeriod,
-            activeMonths: this.activeMonths,
+            activeMonths: (this.activeMonths === null) ? null : [...this.activeMonths],
             notes: this.notes,
         };
     }
@@ -1370,7 +1395,7 @@ const addRootCategory = () => {
 
 const timerEvent = () => {
     const currentDate = getCurrentDate();
-    if (lastTimerEventDate === null || subtractDates(lastTimerEventDate, currentDate) !== 0) {
+    if (lastTimerEventDate === null || !datesAreEqual(lastTimerEventDate, currentDate)) {
         rootContainer.updateStatusCircles();
         lastTimerEventDate = currentDate;
     }
