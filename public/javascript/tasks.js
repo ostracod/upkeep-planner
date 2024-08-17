@@ -26,6 +26,7 @@ let rootContainer;
 let allCategories;
 let currentTask;
 let nextTaskId;
+let recentCompletions = new Set();
 let activeMonthCheckboxes;
 let lastTimerEventDate = null;
 
@@ -207,6 +208,16 @@ const savePlannerItems = async () => {
     await setChunks({ plannerItems: data });
 };
 
+const saveCompletions = async () => {
+    const recentCompletionsData = [];
+    for (const completion of recentCompletions) {
+        recentCompletionsData.push(completion.toJson());
+    }
+    // TODO: Save old completions.
+    
+    await setChunks({ recentCompletions: recentCompletionsData });
+};
+
 class Completion {
     
     constructor(date, dateIsApproximate, notes) {
@@ -375,6 +386,15 @@ class Completion {
     
     remove() {
         this.parentTask.removeCompletion(this);
+    }
+    
+    toJson() {
+        return {
+            taskId: this.parentTask.id,
+            date: { ...this.date },
+            dateIsApproximate: this.dateIsApproximate,
+            notes: this.notes,
+        }
     }
 }
 
@@ -775,7 +795,7 @@ class Task extends PlannerItem {
         }
     }
     
-    handleCompletionsChange(addedNewCompletion = false) {
+    completionsChangeHelper() {
         this.completions.sort(
             (completion1, completion2) => completion1.timestamp - completion2.timestamp,
         );
@@ -784,7 +804,16 @@ class Task extends PlannerItem {
             this.displayCompletions();
         }
         this.updateStatusCircle();
+    }
+    
+    handleCompletionsChange(addedNewCompletion = false) {
+        this.completionsChangeHelper();
+        const lastCompletion = this.getLastCompletion();
+        if (lastCompletion !== null) {
+            recentCompletions.add(lastCompletion);
+        }
         this.checkDueDate(addedNewCompletion);
+        saveCompletions();
     }
     
     handleDueDateChange() {
@@ -795,12 +824,17 @@ class Task extends PlannerItem {
         this.updateStatusCircle();
     }
     
+    addCompletionHelper(completion) {
+        this.completions.push(completion);
+        completion.parentTask = this;
+    }
+    
     addCompletion(completion) {
         const lastDate = this.getLastCompletionDate();
         const completionIsNew = (lastDate === null
             || subtractDates(completion.date, lastDate) > 0);
-        this.completions.push(completion);
-        completion.parentTask = this;
+        this.addCompletionHelper(completion);
+        recentCompletions.add(completion);
         this.handleCompletionsChange(completionIsNew);
     }
     
@@ -827,6 +861,7 @@ class Task extends PlannerItem {
         const index = this.completions.indexOf(completion);
         this.completions.splice(index, 1);
         completion.parentTask = null;
+        recentCompletions.delete(completion);
         this.handleCompletionsChange();
     }
     
@@ -986,6 +1021,10 @@ class Category extends PlannerItem {
 
 const getAllTasks = () => rootContainer.getItems(
     (plannerItem) => (plannerItem instanceof Task)
+);
+
+const jsonToCompletion = (data) => (
+    new Completion(data.date, data.dateIsApproximate, data.notes)
 );
 
 const jsonToContainer = (tag, parentPlannerItem = null, data = null) => {
@@ -1517,12 +1556,25 @@ const initializePage = async () => {
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const rootContainerTag = document.getElementById("rootContainer");
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);
-    nextTaskId = 0;
     const tasks = getAllTasks();
+    const taskMap = new Map();
+    nextTaskId = 0;
     for (const task of tasks) {
+        taskMap.set(task.id, task);
         if (task.id >= nextTaskId) {
             nextTaskId = task.id + 1;
         }
+    }
+    for (const completionData of chunks.recentCompletions) {
+        const task = taskMap.get(completionData.taskId);
+        if (typeof task !== "undefined") {
+            const completion = jsonToCompletion(completionData);
+            task.addCompletionHelper(completion);
+            recentCompletions.add(completion);
+        }
+    }
+    for (const task of tasks) {
+        task.completionsChangeHelper();
     }
     viewPlannerItems();
     setInterval(timerEvent, 200);
