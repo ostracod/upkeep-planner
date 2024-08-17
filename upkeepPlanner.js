@@ -142,7 +142,16 @@ const router = express.Router();
 
 const createAccountEndpoint = (path, handler) => {
     router.post(path, async (req, res) => {
+        const { chunksVersion, keyVersion } = req.body;
         await runAccountFunc(req, res, async (account) => {
+            if ((typeof chunksVersion !== "undefined" && chunksVersion !== account.chunksVersion)
+                    || (typeof keyVersion !== "undefined" && keyVersion !== account.keyVersion)) {
+                res.json({
+                    success: false,
+                    message: "Your client data is stale. Please reload this page."
+                });
+                return;
+            }
             await handler(req, res, account);
         });
     });
@@ -325,8 +334,8 @@ createAccountEndpoint("/getChunks", async (req, res, account) => {
     }
     res.json({
         success: true,
-        keyVersion: account.keyVersion,
         chunks,
+        chunksVersion: account.chunksVersion,
     });
 });
 
@@ -337,7 +346,9 @@ createAccountEndpoint("/setChunks", async (req, res, account) => {
         const chunkKey = getChunkKey(name, account.username);
         await levelDb.put(chunkKey, chunk);
     }
-    res.json({ success: true });
+    account.chunksVersion += 1;
+    await putAccount(account);
+    res.json({ success: true, chunksVersion: account.chunksVersion });
 });
 
 const expressApp = express();

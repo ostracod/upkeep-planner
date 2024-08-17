@@ -19,6 +19,8 @@ let currentRequest = null;
 let saveTimestamp = null;
 let keyHash;
 let keyVersion;
+let chunksVersion = null;
+let hasFault = false;
 let encryptionKey;
 let rootContainer;
 let allCategories;
@@ -97,23 +99,37 @@ const createButtons = (buttonDefs) => {
 };
 
 const makeRequest = async (path, data) => {
-    return await (await fetch(path, {
+    const response = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-    })).json();
+    });
+    if (response.status !== 200) {
+        throw new Error("There was an error while communicating with the server. Please reload this page.");
+    }
+    const responseData = await response.json();
+    if (!responseData.success) {
+        throw new Error(responseData.message);
+    }
+    return responseData;
 };
 
 const updateSaveMessage = () => {
+    let color = "#000000";
     let saveMessage;
-    if (currentRequest?.isSave || requestQueue.some((request) => request.isSave)) {
+    if (hasFault) {
+        color = "#DD0000";
+        saveMessage = "Error while saving! Please reload page.";
+    } else if (currentRequest?.isSave || requestQueue.some((request) => request.isSave)) {
         saveMessage = "Saving...";
     } else if (saveTimestamp === null) {
         saveMessage = "";
     } else {
         saveMessage = "Saved all changes.";
     }
-    document.getElementById("saveMessage").innerHTML = saveMessage;
+    const messageTag = document.getElementById("saveMessage");
+    messageTag.innerHTML = saveMessage;
+    messageTag.style.color = color;
 }
 
 const checkRequestQueue = () => {
@@ -125,11 +141,20 @@ const checkRequestQueue = () => {
 };
 
 const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) => {
+    if (hasFault) {
+        const errorMessage = "Your client data is stale. Please reload this page.";
+        alert(errorMessage);
+        reject(new Error(errorMessage));
+        return;
+    }
     const wrappedFunc = async () => {
         let result;
         try {
             result = await requestFunc();
         } catch (error) {
+            alert(error.message);
+            hasFault = true;
+            updateSaveMessage();
             reject(error);
             return;
         }
@@ -146,10 +171,12 @@ const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) =
 
 const getChunks = async (names) => {
     return await dispatchRequest(false, async () => {
-        const response = await makeRequest("/getChunks", { names });
-        if (response.keyVersion !== keyVersion) {
-            throw new Error("Your client data is stale. Please reload this page.");
+        const body = { keyVersion, names };
+        if (chunksVersion !== null) {
+            body.chunksVersion = chunksVersion;
         }
+        const response = await makeRequest("/getChunks", body);
+        chunksVersion = response.chunksVersion;
         const output = {};
         for (const name of names) {
             const chunk = response.chunks[name];
@@ -166,9 +193,11 @@ const setChunks = async (chunks) => {
         encryptedChunks[name] = await encryptChunk(chunk, encryptionKey);
     }
     await dispatchRequest(true, async () => {
-        const response = await makeRequest("/setChunks", { chunks: encryptedChunks });
-        // TODO: Read the response.
-        
+        const response = await makeRequest(
+            "/setChunks",
+            { chunksVersion, keyVersion, chunks: encryptedChunks },
+        );
+        chunksVersion = response.chunksVersion;
     });
 };
 
