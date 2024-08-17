@@ -14,8 +14,9 @@ const statusColors = {
     inactive: "#CCCCCC",
 };
 
-const requestFuncQueue = [];
-let requestIsRunning = false;
+const requestQueue = [];
+let currentRequest = null;
+let saveTimestamp = null;
 let keyHash;
 let keyVersion;
 let encryptionKey;
@@ -103,15 +104,27 @@ const makeRequest = async (path, data) => {
     })).json();
 };
 
-const checkRequestQueue = () => {
-    if (!requestIsRunning && requestFuncQueue.length > 0) {
-        const requestFunc = requestFuncQueue.shift();
-        requestIsRunning = true;
-        requestFunc();
+const updateSaveMessage = () => {
+    let saveMessage;
+    if (currentRequest?.isSave || requestQueue.some((request) => request.isSave)) {
+        saveMessage = "Saving...";
+    } else if (saveTimestamp === null) {
+        saveMessage = "";
+    } else {
+        saveMessage = "Saved all changes.";
     }
+    document.getElementById("saveMessage").innerHTML = saveMessage;
+}
+
+const checkRequestQueue = () => {
+    if (currentRequest === null && requestQueue.length > 0) {
+        currentRequest = requestQueue.shift();
+        currentRequest.func();
+    }
+    updateSaveMessage();
 };
 
-const dispatchRequest = (requestFunc) => new Promise((resolve, reject) => {
+const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) => {
     const wrappedFunc = async () => {
         let result;
         try {
@@ -120,16 +133,19 @@ const dispatchRequest = (requestFunc) => new Promise((resolve, reject) => {
             reject(error);
             return;
         }
-        requestIsRunning = false;
+        currentRequest = null;
+        if (isSave) {
+            saveTimestamp = Date.now() / 1000;
+        }
         checkRequestQueue();
         resolve(result);
     };
-    requestFuncQueue.push(wrappedFunc);
+    requestQueue.push({ isSave, func: wrappedFunc });
     checkRequestQueue();
 });
 
 const getChunks = async (names) => {
-    return await dispatchRequest(async () => {
+    return await dispatchRequest(false, async () => {
         const response = await makeRequest("/getChunks", { names });
         if (response.keyVersion !== keyVersion) {
             throw new Error("Your client data is stale. Please reload this page.");
@@ -149,7 +165,7 @@ const setChunks = async (chunks) => {
         const chunk = chunks[name];
         encryptedChunks[name] = await encryptChunk(chunk, encryptionKey);
     }
-    await dispatchRequest(async () => {
+    await dispatchRequest(true, async () => {
         const response = await makeRequest("/setChunks", { chunks: encryptedChunks });
         // TODO: Read the response.
         
@@ -1399,6 +1415,10 @@ const timerEvent = () => {
         rootContainer.updateStatusCircles();
         lastTimerEventDate = currentDate;
     }
+    if (saveTimestamp !== null && Date.now() / 1000 > saveTimestamp + 1.2) {
+        saveTimestamp = null;
+        updateSaveMessage();
+    }
 };
 
 const initializePage = async () => {
@@ -1452,7 +1472,7 @@ const initializePage = async () => {
     // TODO: Use the chunks.
     console.log(chunks);
     viewPlannerItems();
-    setInterval(timerEvent, 1000);
+    setInterval(timerEvent, 200);
 };
 
 
