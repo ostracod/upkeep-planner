@@ -25,6 +25,7 @@ const isDevMode = (process.env.NODE_ENV === "development");
 const levelDb = new Level(databasePath, { valueEncoding: "json" });
 // Map from username to job queue.
 const accountQueueMap = new Map();
+let isShuttingDown = false;
 
 const getAccountKey = (username) => "account_" + username;
 
@@ -142,13 +143,20 @@ const router = express.Router();
 
 const createAccountEndpoint = (path, handler) => {
     router.post(path, async (req, res) => {
+        if (isShuttingDown) {
+            res.json({
+                success: false,
+                message: "The server is shutting down. Please try again later.",
+            });
+            return;
+        }
         const { chunksVersion, keyVersion } = req.body;
         await runAccountFunc(req, res, async (account) => {
             if ((typeof chunksVersion !== "undefined" && chunksVersion !== account.chunksVersion)
                     || (typeof keyVersion !== "undefined" && keyVersion !== account.keyVersion)) {
                 res.json({
                     success: false,
-                    message: "Your client data is stale. Please reload this page."
+                    message: "Your client data is stale. Please reload this page.",
                 });
                 return;
             }
@@ -391,6 +399,34 @@ expressApp.use((error, req, res, next) => {
     }
     renderPage(res, "error.html", {}, params);
 });
+
+const shutdownServer = async () => {
+    if (isShuttingDown) {
+        return;
+    }
+    console.log("Shutting down...");
+    isShuttingDown = true;
+    const timeout = setTimeout(() => {
+        console.log("Failed to shut down gracefully!");
+        process.exit(1);
+    }, 10 * 1000);
+    await new Promise((resolve) => {
+        const interval = setInterval(() => {
+            for (const queue of accountQueueMap.values()) {
+                if (queue.currentSymbol !== null || queue.jobs.length > 0) {
+                    return;
+                }
+            }
+            clearInterval(interval);
+            resolve();
+        }, 100);
+    });
+    clearTimeout(timeout);
+    process.exit(0);
+};
+
+process.on("SIGTERM", shutdownServer);
+process.on("SIGINT", shutdownServer);
 
 const server = http.createServer(expressApp);
 const portNumber = parseInt(process.env.PORT_NUMBER, 10);
