@@ -25,6 +25,7 @@ let encryptionKey;
 let rootContainer;
 let allCategories;
 let currentTask;
+let nextTaskId;
 let activeMonthCheckboxes;
 let lastTimerEventDate = null;
 
@@ -411,24 +412,20 @@ class Container {
         plannerItem.parentContainer = null;
     }
     
-    getAllCategories() {
+    getItems(filter) {
         const output = [];
         for (const plannerItem of this.plannerItems) {
-            if (plannerItem instanceof Category) {
+            if (filter(plannerItem)) {
                 output.push(plannerItem);
-                const categories = plannerItem.container.getAllCategories();
-                for (const category of categories) {
-                    output.push(category);
+            }
+            if (plannerItem instanceof Category) {
+                const filteredItems = plannerItem.container.getItems(filter);
+                for (const filteredItem of filteredItems) {
+                    output.push(filteredItem);
                 }
             }
         }
         return output;
-    }
-    
-    updateStatusCircles() {
-        for (const plannerItem of this.plannerItems) {
-            plannerItem.updateStatusCircles();
-        }
     }
     
     toJson() {
@@ -440,7 +437,7 @@ class Container {
 
 class PlannerItem {
     // Concrete subclasses of PlannerItem must implement these methods:
-    // createTag, updateStatusCircles, toJson
+    // createTag, toJson
     
     constructor(name) {
         this.name = name;
@@ -579,6 +576,7 @@ class Task extends PlannerItem {
     
     constructor(data) {
         super(data.name);
+        this.id = data.id;
         this.frequency = data.frequency;
         this.dueDate = data.dueDate;
         this.dueDateIsManual = data.dueDateIsManual;
@@ -697,10 +695,6 @@ class Task extends PlannerItem {
     
     updateStatusCircle() {
         this.statusCircle.style.background = this.getStatusCircleColor();
-    }
-    
-    updateStatusCircles() {
-        this.updateStatusCircle();
     }
     
     displayCompletions() {
@@ -840,6 +834,7 @@ class Task extends PlannerItem {
         return {
             type: "task",
             name: this.name,
+            id: this.id,
             frequency: this.frequency,
             dueDate: (this.dueDate === null) ? null : { ...this.dueDate },
             dueDateIsManual: this.dueDateIsManual,
@@ -980,10 +975,6 @@ class Category extends PlannerItem {
         savePlannerItems();
     }
     
-    updateStatusCircles() {
-        this.container.updateStatusCircles();
-    }
-    
     toJson() {
         return {
             type: "category",
@@ -992,6 +983,10 @@ class Category extends PlannerItem {
         };
     }
 }
+
+const getAllTasks = () => rootContainer.getItems(
+    (plannerItem) => (plannerItem instanceof Task)
+);
 
 const jsonToContainer = (tag, parentPlannerItem = null, data = null) => {
     const container = new Container(tag, parentPlannerItem);
@@ -1026,7 +1021,9 @@ const showLoadingScreen = (message) => {
 };
 
 const updateCategoryOptions = (categoryToSelect) => {
-    allCategories = rootContainer.getAllCategories();
+    allCategories = rootContainer.getItems(
+        (plannerItem) => (plannerItem instanceof Category),
+    );
     const selectTag = document.getElementById("editParentCategory");
     selectTag.innerHTML = "";
     const rootOptionTag = document.createElement("option");
@@ -1287,8 +1284,11 @@ const saveTask = () => {
     const notes = document.getElementById("editTaskNotes").value;
     const parentContainer = getEditParentContainer();
     if (currentTask === null) {
+        const id = nextTaskId;
+        nextTaskId += 1;
         const task = new Task({
             name,
+            id,
             frequency,
             dueDate,
             dueDateIsManual,
@@ -1456,7 +1456,10 @@ const addRootCategory = () => {
 const timerEvent = () => {
     const currentDate = getCurrentDate();
     if (lastTimerEventDate === null || !datesAreEqual(lastTimerEventDate, currentDate)) {
-        rootContainer.updateStatusCircles();
+        const tasks = getAllTasks();
+        for (const task of tasks) {
+            task.updateStatusCircle();
+        }
         lastTimerEventDate = currentDate;
     }
     if (saveTimestamp !== null && Date.now() / 1000 > saveTimestamp + 1.2) {
@@ -1514,6 +1517,13 @@ const initializePage = async () => {
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const rootContainerTag = document.getElementById("rootContainer");
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);
+    nextTaskId = 0;
+    const tasks = getAllTasks();
+    for (const task of tasks) {
+        if (task.id >= nextTaskId) {
+            nextTaskId = task.id + 1;
+        }
+    }
     viewPlannerItems();
     setInterval(timerEvent, 200);
 };
