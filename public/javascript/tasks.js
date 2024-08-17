@@ -350,10 +350,10 @@ class Completion {
 
 class Container {
     
-    constructor(tag) {
+    constructor(tag, parentPlannerItem = null) {
         this.tag = tag;
+        this.parentPlannerItem = parentPlannerItem;
         this.plannerItems = [];
-        this.parentPlannerItem = null;
     }
     
     addItem(plannerItem, index = null) {
@@ -548,24 +548,15 @@ class PlannerItem {
 
 class Task extends PlannerItem {
     
-    constructor(
-        name,
-        frequency,
-        dueDate,
-        dueDateIsManual,
-        upcomingPeriod,
-        gracePeriod,
-        activeMonths,
-        notes,
-    ) {
-        super(name);
-        this.frequency = frequency;
-        this.dueDate = dueDate;
-        this.dueDateIsManual = dueDateIsManual;
-        this.upcomingPeriod = upcomingPeriod;
-        this.gracePeriod = gracePeriod;
-        this.activeMonths = activeMonths;
-        this.notes = notes;
+    constructor(data) {
+        super(data.name);
+        this.frequency = data.frequency;
+        this.dueDate = data.dueDate;
+        this.dueDateIsManual = data.dueDateIsManual;
+        this.upcomingPeriod = data.upcomingPeriod;
+        this.gracePeriod = data.gracePeriod;
+        this.activeMonths = data.activeMonths;
+        this.notes = data.notes;
         this.completions = [];
         this.updateCompletionDateTag();
         this.updateDueDateTag();
@@ -833,6 +824,11 @@ class Task extends PlannerItem {
 
 class Category extends PlannerItem {
     
+    constructor(name, containerData = null) {
+        super(name);
+        this.container = jsonToContainer(this.containerTag, this, containerData);
+    }
+    
     createTag() {
         const output = document.createElement("div");
         output.className = "plannerItem";
@@ -901,11 +897,9 @@ class Category extends PlannerItem {
         rowTag.appendChild(this.renameButtonsTag);
         output.appendChild(rowTag);
         
-        const containerTag = document.createElement("div");
-        containerTag.style.marginLeft = "20px";
-        this.container = new Container(containerTag);
-        this.container.parentPlannerItem = this;
-        output.appendChild(containerTag);
+        this.containerTag = document.createElement("div");
+        this.containerTag.style.marginLeft = "20px";
+        output.appendChild(this.containerTag);
         
         return output;
     }
@@ -969,6 +963,27 @@ class Category extends PlannerItem {
         };
     }
 }
+
+const jsonToContainer = (tag, parentPlannerItem = null, data = null) => {
+    const container = new Container(tag, parentPlannerItem);
+    if (data !== null) {
+        for (const itemJson of data.plannerItems) {
+            const plannerItem = jsonToPlannerItem(itemJson);
+            container.addItem(plannerItem);
+        }
+    }
+    return container;
+}
+
+const jsonToPlannerItem = (data) => {
+    if (data.type === "task") {
+        return new Task(data);
+    } else if (data.type === "category") {
+        return new Category(data.name, data.container);
+    } else {
+        throw new Error(`Invalid planner item type "${data.type}".`);
+    }
+};
 
 const showPage = (idToShow) => {
     for (const id of pageIds) {
@@ -1243,7 +1258,7 @@ const saveTask = () => {
     const notes = document.getElementById("editTaskNotes").value;
     const parentContainer = getEditParentContainer();
     if (currentTask === null) {
-        const task = new Task(
+        const task = new Task({
             name,
             frequency,
             dueDate,
@@ -1252,7 +1267,7 @@ const saveTask = () => {
             gracePeriod,
             activeMonths,
             notes,
-        );
+        });
         parentContainer.addItem(task);
         viewPlannerItems();
     } else {
@@ -1430,7 +1445,6 @@ const initializePage = async () => {
     showLoadingScreen("Loading tasks...");
     ({ keyHash, keyVersion } = JSON.parse(keyData));
     encryptionKey = await getEncryptionKey(keyHash);
-    rootContainer = new Container(document.getElementById("rootContainer"));
     const monthsTag = document.getElementById("editActiveMonths");
     activeMonthCheckboxes = [];
     for (const abbreviation of monthAbbreviations) {
@@ -1469,8 +1483,8 @@ const initializePage = async () => {
         }
     }
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
-    // TODO: Use the chunks.
-    console.log(chunks);
+    const rootContainerTag = document.getElementById("rootContainer");
+    rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);
     viewPlannerItems();
     setInterval(timerEvent, 200);
 };
