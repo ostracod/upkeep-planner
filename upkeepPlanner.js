@@ -352,7 +352,12 @@ createAccountEndpoint("/setChunks", async (req, res, account) => {
     for (const name in chunks) {
         const chunk = chunks[name];
         const chunkKey = getChunkKey(name, account.username);
-        await levelDb.put(chunkKey, chunk);
+        if (chunk === null) {
+            // TODO: Delete the chunk.
+            
+        } else {
+            await levelDb.put(chunkKey, chunk);
+        }
     }
     account.chunksVersion += 1;
     await putAccount(account);

@@ -13,6 +13,7 @@ const statusColors = {
     overdue: "#FF0000",
     inactive: "#CCCCCC",
 };
+const completionFlushThreshold = 3; // TODO: Increase this number.
 
 const requestQueue = [];
 let currentRequest = null;
@@ -203,19 +204,44 @@ const setChunks = async (chunks) => {
     });
 };
 
-const savePlannerItems = async () => {
+const savePlannerItems = () => {
     const data = rootContainer.toJson();
-    await setChunks({ plannerItems: data });
+    setChunks({ plannerItems: data });
 };
 
-const saveCompletions = async () => {
-    const recentCompletionsData = [];
+const recentCompletionsToJson = () => {
+    const output = [];
     for (const completion of recentCompletions) {
-        recentCompletionsData.push(completion.toJson());
+        output.push(completion.toJson());
     }
-    // TODO: Save old completions.
-    
-    await setChunks({ recentCompletions: recentCompletionsData });
+    return output;
+}
+
+const saveCompletions = () => {
+    const tasks = getAllTasks();
+    const surplusCount = recentCompletions.size - tasks.length;
+    const chunks = {};
+    if (surplusCount >= completionFlushThreshold) {
+        const previousCompletions = recentCompletions;
+        recentCompletions = new Set();
+        for (const task of tasks) {
+            const lastCompletion = task.getLastCompletion();
+            if (lastCompletion !== null) {
+                recentCompletions.add(lastCompletion);
+            }
+        }
+        const tasksToUpdate = new Set();
+        for (const completion of previousCompletions) {
+            if (!recentCompletions.has(completion)) {
+                tasksToUpdate.add(completion.parentTask);
+            }
+        }
+        for (const task of tasksToUpdate) {
+            chunks[task.getOldCompletionsKey()] = task.oldCompletionsToJson();
+        }
+    }
+    chunks.recentCompletions = recentCompletionsToJson();
+    setChunks(chunks);
 };
 
 class Completion {
@@ -381,6 +407,8 @@ class Completion {
         this.hideEditTag();
         this.textTag.innerHTML = this.getDateString();
         this.updateNotesButton();
+        // TODO: Update old completions.
+        
         this.parentTask.handleCompletionsChange();
     }
     
@@ -862,7 +890,24 @@ class Task extends PlannerItem {
         this.completions.splice(index, 1);
         completion.parentTask = null;
         recentCompletions.delete(completion);
+        // TODO: Update old completions.
+        
         this.handleCompletionsChange();
+    }
+    
+    getOldCompletionsKey() {
+        return "oldCompletions." + this.id;
+    }
+    
+    remove() {
+        for (const completion of this.completions) {
+            recentCompletions.delete(completion);
+        }
+        setChunks({
+            recentCompletions: recentCompletionsToJson(),
+            [this.getOldCompletionsKey()]: null,
+        });
+        super.remove();
     }
     
     toJson() {
@@ -878,6 +923,16 @@ class Task extends PlannerItem {
             activeMonths: (this.activeMonths === null) ? null : [...this.activeMonths],
             notes: this.notes,
         };
+    }
+    
+    oldCompletionsToJson() {
+        const output = [];
+        for (const completion of this.completions) {
+            if (!recentCompletions.has(completion)) {
+                output.push(completion.toJson());
+            }
+        }
+        return output;
     }
 }
 
