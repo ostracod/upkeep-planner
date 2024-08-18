@@ -172,9 +172,9 @@ const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) =
     checkRequestQueue();
 });
 
-const getChunks = async (names) => {
+const getChunks = async (names, isSave = false) => {
     console.log("getChunks " + names.join(", "));
-    return await dispatchRequest(false, async () => {
+    return await dispatchRequest(isSave, async () => {
         const body = { keyVersion, names };
         if (chunksVersion !== null) {
             body.chunksVersion = chunksVersion;
@@ -219,7 +219,7 @@ const recentCompletionsToJson = () => {
     return output;
 }
 
-const loadOldCompletions = async (tasks) => {
+const loadOldCompletions = async (tasks, isSave = false) => {
     const chunkKeys = [];
     for (const task of tasks) {
         if (!task.loadedOldCompletions) {
@@ -229,7 +229,7 @@ const loadOldCompletions = async (tasks) => {
     if (chunkKeys.length <= 0) {
         return;
     }
-    const chunks = await getChunks(chunkKeys);
+    const chunks = await getChunks(chunkKeys, isSave);
     for (const task of tasks) {
         const completionsData = chunks[task.getOldCompletionsKey()];
         // Check `loadedOldCompletions` again to make sure we don't
@@ -248,7 +248,10 @@ const saveCompletions = async (oldCompletionsTask = null) => {
     const tasks = getAllTasks();
     const surplusCount = recentCompletions.size - tasks.length;
     console.log("surplusCount = " + surplusCount);
-    const chunks = {};
+    const oldCompletionsTasks = [];
+    if (oldCompletionsTask !== null) {
+        oldCompletionsTasks.push(oldCompletionsTask);
+    }
     if (surplusCount >= completionFlushThreshold) {
         const previousCompletions = recentCompletions;
         recentCompletions = new Set();
@@ -264,16 +267,18 @@ const saveCompletions = async (oldCompletionsTask = null) => {
                 tasksToUpdate.add(completion.parentTask);
             }
         }
-        await loadOldCompletions(tasksToUpdate);
+        await loadOldCompletions(tasksToUpdate, true);
         for (const task of tasksToUpdate) {
+            oldCompletionsTasks.push(task);
+        }
+    }
+    const chunks = { recentCompletions: recentCompletionsToJson() };
+    for (const task of oldCompletionsTasks) {
+        // Make sure that the task hasn't been deleted while running `loadOldCompletions`.
+        if (!task.isDeleted) {
             chunks[task.getOldCompletionsKey()] = task.oldCompletionsToJson();
         }
     }
-    if (oldCompletionsTask !== null) {
-        const chunkKey = oldCompletionsTask.getOldCompletionsKey();
-        chunks[chunkKey] = oldCompletionsTask.oldCompletionsToJson();
-    }
-    chunks.recentCompletions = recentCompletionsToJson();
     setChunks(chunks);
 };
 
@@ -669,6 +674,7 @@ class Task extends PlannerItem {
         this.notes = data.notes;
         this.completions = [];
         this.loadedOldCompletions = false;
+        this.isDeleted = false;
         this.updateCompletionDateTag();
         this.updateDueDateTag();
         this.updateStatusCircle();
@@ -944,6 +950,7 @@ class Task extends PlannerItem {
         for (const completion of this.completions) {
             recentCompletions.delete(completion);
         }
+        this.isDeleted = true;
         setChunks({
             recentCompletions: recentCompletionsToJson(),
             [this.getOldCompletionsKey()]: null,
@@ -1433,6 +1440,8 @@ const saveTask = () => {
             notes,
         });
         parentContainer.addItem(task);
+        task.loadedOldCompletions = true;
+        setChunks({ [task.getOldCompletionsKey()]: [] });
         viewPlannerItems();
     } else {
         currentTask.setName(name);
