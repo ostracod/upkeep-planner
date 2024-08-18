@@ -333,7 +333,7 @@ class Completion {
                 onClick: () => {
                     const shouldDelete = confirm(`Are you sure you want to delete the completion at ${this.getDateString()}?`);
                     if (shouldDelete) {
-                        this.remove();
+                        this.delete();
                     }
                 },
             },
@@ -452,8 +452,8 @@ class Completion {
         this.parentTask.handleCompletionsChange(false, true);
     }
     
-    remove() {
-        this.parentTask.removeCompletion(this);
+    delete() {
+        this.parentTask.deleteCompletion(this);
     }
     
     toJson() {
@@ -934,7 +934,7 @@ class Task extends PlannerItem {
         }
     }
     
-    removeCompletion(completion) {
+    deleteCompletion(completion) {
         const index = this.completions.indexOf(completion);
         this.completions.splice(index, 1);
         completion.parentTask = null;
@@ -946,7 +946,7 @@ class Task extends PlannerItem {
         return "oldCompletions." + this.id;
     }
     
-    remove() {
+    delete() {
         for (const completion of this.completions) {
             recentCompletions.delete(completion);
         }
@@ -955,7 +955,7 @@ class Task extends PlannerItem {
             recentCompletions: recentCompletionsToJson(),
             [this.getOldCompletionsKey()]: null,
         });
-        super.remove();
+        this.remove();
     }
     
     toJson() {
@@ -1034,7 +1034,7 @@ class Category extends PlannerItem {
             {
                 text: "Delete",
                 onClick: () => {
-                    this.removeAndDumpChildren();
+                    this.deleteAndDumpChildren();
                 },
             },
         ]);
@@ -1098,7 +1098,7 @@ class Category extends PlannerItem {
         this.renameButtonsTag.style.display = "none";
     }
     
-    removeAndDumpChildren() {
+    deleteAndDumpChildren() {
         const { parentContainer } = this;
         const index = parentContainer.findItem(this);
         const children = this.container.plannerItems.slice();
@@ -1575,7 +1575,7 @@ const cancelTaskEdit = () => {
 const deleteTask = () => {
     const shouldDelete = confirm("Are you sure you want to delete this task?");
     if (shouldDelete) {
-        currentTask.remove();
+        currentTask.delete();
         viewPlannerItems();
         savePlannerItems();
     }
