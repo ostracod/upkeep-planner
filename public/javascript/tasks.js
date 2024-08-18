@@ -173,6 +173,7 @@ const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) =
 });
 
 const getChunks = async (names) => {
+    console.log("getChunks " + names.join(", "));
     return await dispatchRequest(false, async () => {
         const body = { keyVersion, names };
         if (chunksVersion !== null) {
@@ -190,6 +191,7 @@ const getChunks = async (names) => {
 };
 
 const setChunks = async (chunks) => {
+    console.log("setChunks " + Object.keys(chunks).join(", "));
     const encryptedChunks = {};
     for (const name in chunks) {
         const chunk = chunks[name];
@@ -217,9 +219,35 @@ const recentCompletionsToJson = () => {
     return output;
 }
 
-const saveCompletions = () => {
+const loadOldCompletions = async (tasks) => {
+    const chunkKeys = [];
+    for (const task of tasks) {
+        if (!task.loadedOldCompletions) {
+            chunkKeys.push(task.getOldCompletionsKey());
+        }
+    }
+    if (chunkKeys.length <= 0) {
+        return;
+    }
+    const chunks = await getChunks(chunkKeys);
+    for (const task of tasks) {
+        const completionsData = chunks[task.getOldCompletionsKey()];
+        // Check `loadedOldCompletions` again to make sure we don't
+        // accidentally add the same completions twice.
+        if (!task.loadedOldCompletions) {
+            if (Array.isArray(completionsData)) {
+                const completions = completionsData.map((data) => jsonToCompletion(data));
+                task.addCompletionsFromServer(completions);
+            }
+            task.loadedOldCompletions = true;
+        }
+    }
+};
+
+const saveCompletions = async (oldCompletionsTask = null) => {
     const tasks = getAllTasks();
     const surplusCount = recentCompletions.size - tasks.length;
+    console.log("surplusCount = " + surplusCount);
     const chunks = {};
     if (surplusCount >= completionFlushThreshold) {
         const previousCompletions = recentCompletions;
@@ -232,13 +260,18 @@ const saveCompletions = () => {
         }
         const tasksToUpdate = new Set();
         for (const completion of previousCompletions) {
-            if (!recentCompletions.has(completion)) {
+            if (!completion.isRecent()) {
                 tasksToUpdate.add(completion.parentTask);
             }
         }
+        await loadOldCompletions(tasksToUpdate);
         for (const task of tasksToUpdate) {
             chunks[task.getOldCompletionsKey()] = task.oldCompletionsToJson();
         }
+    }
+    if (oldCompletionsTask !== null) {
+        const chunkKey = oldCompletionsTask.getOldCompletionsKey();
+        chunks[chunkKey] = oldCompletionsTask.oldCompletionsToJson();
     }
     chunks.recentCompletions = recentCompletionsToJson();
     setChunks(chunks);
@@ -363,6 +396,10 @@ class Completion {
         return this.tag;
     }
     
+    isRecent() {
+        return recentCompletions.has(this);
+    }
+    
     updateNotesButton() {
         this.notesButton.style.display = (this.notes.length > 0) ? "" : "none";
         this.notesButton.innerHTML = this.notesAreVisible ? "Hide Notes" : "Show Notes";
@@ -407,9 +444,7 @@ class Completion {
         this.hideEditTag();
         this.textTag.innerHTML = this.getDateString();
         this.updateNotesButton();
-        // TODO: Update old completions.
-        
-        this.parentTask.handleCompletionsChange();
+        this.parentTask.handleCompletionsChange(false, true);
     }
     
     remove() {
@@ -633,6 +668,7 @@ class Task extends PlannerItem {
         this.activeMonths = data.activeMonths;
         this.notes = data.notes;
         this.completions = [];
+        this.loadedOldCompletions = false;
         this.updateCompletionDateTag();
         this.updateDueDateTag();
         this.updateStatusCircle();
@@ -834,14 +870,14 @@ class Task extends PlannerItem {
         this.updateStatusCircle();
     }
     
-    handleCompletionsChange(addedNewCompletion = false) {
+    handleCompletionsChange(addedNewCompletion, shouldSaveOldCompletions) {
         this.completionsChangeHelper();
         const lastCompletion = this.getLastCompletion();
         if (lastCompletion !== null) {
             recentCompletions.add(lastCompletion);
         }
         this.checkDueDate(addedNewCompletion);
-        saveCompletions();
+        saveCompletions(shouldSaveOldCompletions ? this : null);
     }
     
     handleDueDateChange() {
@@ -863,7 +899,14 @@ class Task extends PlannerItem {
             || subtractDates(completion.date, lastDate) > 0);
         this.addCompletionHelper(completion);
         recentCompletions.add(completion);
-        this.handleCompletionsChange(completionIsNew);
+        this.handleCompletionsChange(completionIsNew, false);
+    }
+    
+    addCompletionsFromServer(completions) {
+        for (const completion of completions) {
+            this.addCompletionHelper(completion);
+        }
+        this.completionsChangeHelper();
     }
     
     getLastCompletion() {
@@ -890,9 +933,7 @@ class Task extends PlannerItem {
         this.completions.splice(index, 1);
         completion.parentTask = null;
         recentCompletions.delete(completion);
-        // TODO: Update old completions.
-        
-        this.handleCompletionsChange();
+        this.handleCompletionsChange(false, true);
     }
     
     getOldCompletionsKey() {
@@ -928,7 +969,7 @@ class Task extends PlannerItem {
     oldCompletionsToJson() {
         const output = [];
         for (const completion of this.completions) {
-            if (!recentCompletions.has(completion)) {
+            if (!completion.isRecent()) {
                 output.push(completion.toJson());
             }
         }
@@ -1436,9 +1477,13 @@ const clearNewCompletionForm = () => {
     document.getElementById("newCompletionNotes").value = "";
 };
 
-const viewTask = (task = null) => {
+const viewTask = async (task = null) => {
     if (task !== null) {
         currentTask = task;
+    }
+    if (!currentTask.loadedOldCompletions) {
+        showLoadingScreen("Loading task...");
+        await loadOldCompletions([currentTask]);
     }
     showPage("viewTask");
     document.getElementById("viewTaskName").innerHTML = currentTask.name;
@@ -1620,16 +1665,25 @@ const initializePage = async () => {
             nextTaskId = task.id + 1;
         }
     }
-    for (const completionData of chunks.recentCompletions) {
-        const task = taskMap.get(completionData.taskId);
-        if (typeof task !== "undefined") {
+    if (chunks.recentCompletions !== null) {
+        const completionsMap = new Map();
+        for (const completionData of chunks.recentCompletions) {
+            const { taskId } = completionData;
             const completion = jsonToCompletion(completionData);
-            task.addCompletionHelper(completion);
+            let completions = completionsMap.get(taskId);
+            if (typeof completions === "undefined") {
+                completions = [];
+                completionsMap.set(taskId, completions);
+            }
+            completions.push(completion);
             recentCompletions.add(completion);
         }
-    }
-    for (const task of tasks) {
-        task.completionsChangeHelper();
+        for (const [taskId, completions] of completionsMap) {
+            const task = taskMap.get(taskId);
+            if (typeof task !== "undefined") {
+                task.addCompletionsFromServer(completions);
+            }
+        }
     }
     viewPlannerItems();
     setInterval(timerEvent, 200);
