@@ -101,22 +101,6 @@ const createButtons = (buttonDefs) => {
     return { divTag, buttonTags };
 };
 
-const makeRequest = async (path, data) => {
-    const response = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-    });
-    if (response.status !== 200) {
-        throw new Error("There was an error while communicating with the server. Please reload this page.");
-    }
-    const responseData = await response.json();
-    if (!responseData.success) {
-        throw new Error(responseData.message);
-    }
-    return responseData;
-};
-
 const updateSaveMessage = () => {
     let color = "#000000";
     let saveMessage;

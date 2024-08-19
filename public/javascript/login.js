@@ -1,4 +1,6 @@
 
+let isLoggingIn = false;
+
 const logIn = async () => {
     const usernameTag = document.getElementById("username");
     const passwordTag = document.getElementById("password");
@@ -14,37 +16,28 @@ const logIn = async () => {
         passwordTag.focus();
         return;
     }
-    const response1 = await (await fetch("/getAuthSalt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
-    })).json();
-    if (!response1.success) {
-        alert(response1.message);
-        return;
-    }
-    const { authSalt } = response1;
+    const { authSalt } = await makeRequest("/getAuthSalt", { username });
     const authHash = await dcodeIO.bcrypt.hash(password, authSalt);
-    const response2 = await (await fetch("/loginAction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, authHash }),
-    })).json();
-    if (!response2.success) {
-        alert(response2.message);
-        return;
-    }
-    const { keySalt, keyVersion } = response2;
+    const { keySalt, keyVersion } = await makeRequest("/loginAction", { username, authHash });
     const keyHash = await dcodeIO.bcrypt.hash(password, keySalt);
     localStorage.setItem("keyData", JSON.stringify({ keyHash, keyVersion }));
     window.location = "/tasks";
 };
 
 const formSubmitEvent = async () => {
+    if (isLoggingIn) {
+        return;
+    }
+    isLoggingIn = true;
     const messageTag = document.getElementById("message");
     messageTag.innerHTML = "Logging in...";
-    await logIn();
+    try {
+        await logIn();
+    } catch (error) {
+        alert(error.message);
+    }
     messageTag.innerHTML = "";
+    isLoggingIn = false;
 };
 
 
