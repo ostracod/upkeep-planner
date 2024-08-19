@@ -79,6 +79,18 @@ const checkAuthentication = (req, res) => {
     return false;
 };
 
+const checkAuthHash = async (authHash, account, res) => {
+    const hashMatches = await bcrypt.compare(authHash, account.authHashHash);
+    if (!hashMatches) {
+        res.json({
+            success: false,
+            message: "Incorrect password.",
+        });
+        return false;
+    }
+    return true;
+};
+
 const getAccountQueue = (username) => {
     let queue = accountQueueMap.get(username);
     if (typeof queue === "undefined") {
@@ -245,12 +257,7 @@ router.post("/loginAction", async (req, res) => {
         });
         return;
     }
-    const hashMatches = await bcrypt.compare(authHash, account.authHashHash);
-    if (!hashMatches) {
-        res.json({
-            success: false,
-            message: "Incorrect password.",
-        });
+    if (!(await checkAuthHash(authHash, account, res))) {
         return;
     }
     req.session.username = username;
@@ -293,35 +300,26 @@ router.get("/changePassword", (req, res) => {
     );
 });
 
-const sleep = (duration) => new Promise((resolve) => {
-    setTimeout(resolve, duration * 1000);
+createAccountEndpoint("/getSalts", (req, res, account) => {
+    res.json({
+        success: true,
+        authSalt: account.authSalt,
+        keySalt: account.keySalt,
+        keyVersion: account.keyVersion,
+        chunksVersion: account.chunksVersion,
+    });
 });
 
-const createTestEndpoint = (path, duration) => {
-    createAccountEndpoint(path, async (req, res, account) => {
-        const { id } = req.body;
-        console.log(`${account.username} request ${id} started!`);
-        await sleep(duration);
-        console.log(`${account.username} request ${id} ended!`);
-        res.json({ success: true, id });
-    });
-};
-
-createTestEndpoint("/test1", 3);
-createTestEndpoint("/test2", 31);
-
-createAccountEndpoint("/getSalts", (req, res, account) => {
-    res.json({ success: true, authSalt: account.authSalt, keySalt: account.keySalt });
+createAccountEndpoint("/validateAuthHash", async (req, res, account) => {
+    if (!(await checkAuthHash(req.body.authHash, account, res))) {
+        return;
+    }
+    res.json({ success: true });
 });
 
 createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
     const { oldAuthHash, newAuthSalt, newAuthHash, newKeySalt } = req.body;
-    const hashMatches = await bcrypt.compare(oldAuthHash, account.authHashHash);
-    if (!hashMatches) {
-        res.json({
-            success: false,
-            message: "Incorrect old password.",
-        });
+    if (!(await checkAuthHash(oldAuthHash, account, res))) {
         return;
     }
     account.authSalt = newAuthSalt;

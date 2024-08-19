@@ -23,18 +23,33 @@ const changePassword = async () => {
         confirmPasswordTag.focus();
         return;
     }
-    const { authSalt: oldAuthSalt, keySalt: oldKeySalt } = await makeRequest("/getSalts", {});
+    const response = await makeRequest("/getSalts", {});
+    let { chunksVersion } = response.chunksVersion;
+    const {
+        authSalt: oldAuthSalt,
+        keySalt: oldKeySalt,
+        keyVersion: oldKeyVersion,
+    } = response;
     const oldAuthHash = await dcodeIO.bcrypt.hash(oldPassword, oldAuthSalt);
     const oldKeyHash = await dcodeIO.bcrypt.hash(oldPassword, oldKeySalt);
+    await makeRequest("/validateAuthHash", {
+        authHash: oldAuthHash,
+        keyVersion: oldKeyVersion,
+        chunksVersion,
+    });
     const newAuthSalt = await dcodeIO.bcrypt.genSalt(10);
     const newAuthHash = await dcodeIO.bcrypt.hash(newPassword, newAuthSalt);
     const newKeySalt = await dcodeIO.bcrypt.genSalt(10);
     const newKeyHash = await dcodeIO.bcrypt.hash(newPassword, newKeySalt);
+    // TODO: Load and re-encrypt chunks.
+    
     const { keyVersion: newKeyVersion } = await makeRequest("/changePasswordAction", {
         oldAuthHash,
         newAuthSalt,
         newAuthHash,
         newKeySalt,
+        keyVersion: oldKeyVersion,
+        chunksVersion,
         // TODO: Send re-encrypted chunks in this request.
     });
     const keyData = JSON.stringify({ keyHash: newKeyHash, keyVersion: newKeyVersion });

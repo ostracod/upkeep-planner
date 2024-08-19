@@ -1,4 +1,6 @@
 
+let isCreatingAccount = false;
+
 const createAccount = async () => {
     const usernameTag = document.getElementById("username");
     const passwordTag = document.getElementById("password");
@@ -36,30 +38,31 @@ const createAccount = async () => {
     const authSalt = await dcodeIO.bcrypt.genSalt(10);
     const keySalt = await dcodeIO.bcrypt.genSalt(10);
     const authHash = await dcodeIO.bcrypt.hash(password, authSalt);
-    const response = await (await fetch("/createAccountAction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            username,
-            authSalt,
-            keySalt,
-            authHash,
-            emailAddress,
-        }),
-    })).json();
-    if (!response.success) {
-        alert(response.message);
-        return;
-    }
+    await makeRequest("/createAccountAction", {
+        username,
+        authSalt,
+        keySalt,
+        authHash,
+        emailAddress,
+    });
     alert("Your account was created successfully.");
     window.location = "/login";
 };
 
 const formSubmitEvent = async () => {
+    if (isCreatingAccount) {
+        return;
+    }
+    isCreatingAccount = true;
     const messageTag = document.getElementById("message");
     messageTag.innerHTML = "Creating account...";
-    await createAccount();
+    try {
+        await createAccount();
+    } catch (error) {
+        alert(error.message);
+    }
     messageTag.innerHTML = "";
+    isCreatingAccount = false;
 };
 
 
