@@ -179,7 +179,9 @@ const setChunks = async (chunks) => {
     const encryptedChunks = {};
     for (const name in chunks) {
         const chunk = chunks[name];
-        encryptedChunks[name] = await encryptChunk(chunk, encryptionKey);
+        encryptedChunks[name] = (chunk === null)
+            ? null
+            : await encryptChunk(chunk, encryptionKey);
     }
     await dispatchRequest(true, async () => {
         const response = await makeRequest(

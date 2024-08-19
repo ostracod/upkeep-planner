@@ -1,5 +1,22 @@
 
 let isChangingPassword = false;
+let oldEncryptionKey;
+let oldKeyVersion;
+let chunksVersion;
+
+const getChunks = async (names) => {
+    const response = await makeRequest("/getChunks", {
+        names,
+        keyVersion: oldKeyVersion,
+        chunksVersion,
+    });
+    const output = {};
+    for (const name of names) {
+        const chunk = response.chunks[name];
+        output[name] = (chunk === null) ? null : await decryptChunk(chunk, oldEncryptionKey);
+    }
+    return output;
+};
 
 const changePassword = async () => {
     const oldPasswordTag = document.getElementById("oldPassword");
@@ -24,14 +41,12 @@ const changePassword = async () => {
         return;
     }
     const response = await makeRequest("/getSalts", {});
-    let { chunksVersion } = response.chunksVersion;
-    const {
-        authSalt: oldAuthSalt,
-        keySalt: oldKeySalt,
-        keyVersion: oldKeyVersion,
-    } = response;
+    const { authSalt: oldAuthSalt, keySalt: oldKeySalt } = response;
+    oldKeyVersion = response.keyVersion;
+    chunksVersion = response.chunksVersion;
     const oldAuthHash = await dcodeIO.bcrypt.hash(oldPassword, oldAuthSalt);
     const oldKeyHash = await dcodeIO.bcrypt.hash(oldPassword, oldKeySalt);
+    oldEncryptionKey = await getEncryptionKey(oldKeyHash);
     await makeRequest("/validateAuthHash", {
         authHash: oldAuthHash,
         keyVersion: oldKeyVersion,
@@ -41,7 +56,21 @@ const changePassword = async () => {
     const newAuthHash = await dcodeIO.bcrypt.hash(newPassword, newAuthSalt);
     const newKeySalt = await dcodeIO.bcrypt.genSalt(10);
     const newKeyHash = await dcodeIO.bcrypt.hash(newPassword, newKeySalt);
-    // TODO: Load and re-encrypt chunks.
+    const newEncryptionKey = await getEncryptionKey(newKeyHash);
+    const chunks = await getChunks(["plannerItems", "recentCompletions"]);
+    console.log(chunks);
+    // TODO: Load chunks for old completions too.
+    
+    const encryptedChunks = {};
+    for (const name in chunks) {
+        const chunk = chunks[name];
+        if (chunk !== null) {
+            encryptedChunks[name] = await encryptChunk(chunk, newEncryptionKey);
+        }
+    }
+    
+    // BIG TEST CODE.
+    return;
     
     const { keyVersion: newKeyVersion } = await makeRequest("/changePasswordAction", {
         oldAuthHash,
@@ -50,7 +79,7 @@ const changePassword = async () => {
         newKeySalt,
         keyVersion: oldKeyVersion,
         chunksVersion,
-        // TODO: Send re-encrypted chunks in this request.
+        chunks: encryptedChunks,
     });
     const keyData = JSON.stringify({ keyHash: newKeyHash, keyVersion: newKeyVersion });
     localStorage.setItem("keyData", keyData);
