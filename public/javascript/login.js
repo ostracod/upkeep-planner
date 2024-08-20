@@ -40,4 +40,9 @@ const formSubmitEvent = async () => {
     isLoggingIn = false;
 };
 
+const initializePage = () => {
+    createStatusLegend(document.getElementById("statusLegend"));
+    applyCircleColors();
+};
+
 

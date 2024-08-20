@@ -5,14 +5,6 @@ const pageIds = ["loadingScreen", "viewPlannerItems", "editTask", "viewTask"];
 const secondsPerDay = 60 * 60 * 24;
 const monthAmount = 12;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const statusColors = {
-    neverCompleted: "#4444FF",
-    completed: "#44FF44",
-    upcoming: "#DDDD00",
-    grace: "#FF8800",
-    overdue: "#FF0000",
-    inactive: "#CCCCCC",
-};
 const completionFlushThreshold = 3; // TODO: Increase this number.
 
 const requestQueue = [];
@@ -1641,13 +1633,8 @@ const initializePage = async () => {
     ]).divTag;
     buttonsTag.style.marginLeft = "15px";
     monthsTag.appendChild(buttonsTag);
-    for (const name in statusColors) {
-        const color = statusColors[name];
-        const tags = document.getElementsByName(name + "Circle");
-        for (const tag of tags) {
-            tag.style.background = color;
-        }
-    }
+    createStatusLegend(document.getElementById("statusLegend"));
+    applyCircleColors();
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const rootContainerTag = document.getElementById("rootContainer");
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);

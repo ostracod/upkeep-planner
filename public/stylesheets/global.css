@@ -26,4 +26,17 @@ pre {
     word-break: break-word;
 }
 
+.statusCircle {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+}
 
+.inlineCircle {
+    display: inline-block;
+    vertical-align: -2px;
+}
+
+.screenshot {
+    border: 3px #AAAAAA solid;
+}

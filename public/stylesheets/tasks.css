@@ -19,17 +19,6 @@
     margin-right: 10px;
 }
 
-.statusCircle {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-}
-
-.inlineCircle {
-    display: inline-block;
-    vertical-align: -2px;
-}
-
 button {
     margin-right: 5px;
 }

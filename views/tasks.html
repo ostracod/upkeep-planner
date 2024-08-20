@@ -7,14 +7,7 @@
         <button onclick="startTaskCreation();">Add Task</button><button onclick="addRootCategory();">Add Category</button>
     </p>
     <p>Legend:</p>
-    <p style="line-height: 22px;">
-        <span name="neverCompletedCircle" class="statusCircle inlineCircle"></span> = Never completed<br />
-        <span name="completedCircle" class="statusCircle inlineCircle"></span> = Completed<br />
-        <span name="upcomingCircle" class="statusCircle inlineCircle"></span> = Due date is upcoming<br />
-        <span name="graceCircle" class="statusCircle inlineCircle"></span> = Grace period after due date<br />
-        <span name="overdueCircle" class="statusCircle inlineCircle"></span> = Overdue<br />
-        <span name="inactiveCircle" class="statusCircle inlineCircle"></span> = Out of season
-    </p>
+    <p id="statusLegend"></p>
 </div>
 <div id="editTask" style="display: none;">
     <p>

@@ -1,4 +1,11 @@
-<p>A tool for keeping track of home maintenance tasks</p>
+{{^hasLoggedIn}}
+<script>
+localStorage.removeItem("keyData");
+</script>
+{{/hasLoggedIn}}
+<p>
+    <a href="/createAccount">Create a New Account</a>
+</p>
 <h2>LOG IN</h2>
 <form onsubmit="formSubmitEvent(); return false;">
     <table>
@@ -16,14 +23,31 @@
         </tr>
     </table>
 </form>
-<p id="message"></p>
+<div id="message" style="height: 40px;"></div>
 <p>
-    <a href="/createAccount">Create a New Account</a>
+    Upkeep planner is a tool to keep track of recurring maintenance tasks. Organize tasks into categories, set their due dates, and store a record of past completions.
 </p>
-{{^hasLoggedIn}}
+<p style="text-align: center;">
+    <img src="/images/screenshot1.png" class="screenshot" width="450" />
+</p>
+<p>
+    Each task has a different color circle depending on its status:
+</p>
+<p id="statusLegend"></p>
+<p>
+    Due dates are highly customizable. Configure upcoming and grace periods to give yourself some wiggle room. Choose a set of active months for seasonal tasks.
+</p>
+<p style="text-align: center;">
+    <img src="/images/screenshot2.png" class="screenshot" width="550" />
+</p>
+<p>
+    Upkeep planner is an open-source application. Visit <a href="https://github.com/ostracod/upkeep-planner">this repository</a> to see the code.
+</p>
+<p>
+    Happy planning!
+</p>
 <script>
-localStorage.removeItem("keyData");
+initializePage();
 </script>
-{{/hasLoggedIn}}
 
 
