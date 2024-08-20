@@ -18,6 +18,16 @@ const getChunks = async (names) => {
     return output;
 };
 
+const getTaskIds = (dest, plannerItems) => {
+    for (const plannerItem of plannerItems) {
+        if (plannerItem.type === "task") {
+            dest.push(plannerItem.id);
+        } else if (plannerItem.type === "category") {
+            getTaskIds(dest, plannerItem.container.plannerItems);
+        }
+    }
+};
+
 const changePassword = async () => {
     const oldPasswordTag = document.getElementById("oldPassword");
     const newPasswordTag = document.getElementById("newPassword");
@@ -58,9 +68,17 @@ const changePassword = async () => {
     const newKeyHash = await dcodeIO.bcrypt.hash(newPassword, newKeySalt);
     const newEncryptionKey = await getEncryptionKey(newKeyHash);
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
-    console.log(chunks);
-    // TODO: Load chunks for old completions too.
-    
+    const plannerItemsChunk = chunks.plannerItems;
+    if (plannerItemsChunk !== null) {
+        const { plannerItems } = chunks.plannerItems;
+        const taskIds = [];
+        getTaskIds(taskIds, plannerItems);
+        const oldCompletionsKeys = taskIds.map((id) => "oldCompletions." + id);
+        const oldCompletionsChunks = await getChunks(oldCompletionsKeys);
+        for (const name in oldCompletionsChunks) {
+            chunks[name] = oldCompletionsChunks[name];
+        }
+    }
     const encryptedChunks = {};
     for (const name in chunks) {
         const chunk = chunks[name];
@@ -68,10 +86,6 @@ const changePassword = async () => {
             encryptedChunks[name] = await encryptChunk(chunk, newEncryptionKey);
         }
     }
-    
-    // BIG TEST CODE.
-    return;
-    
     const { keyVersion: newKeyVersion } = await makeRequest("/changePasswordAction", {
         oldAuthHash,
         newAuthSalt,

@@ -151,6 +151,18 @@ const getChunkKey = (chunkName, username) => {
     return `${chunkName}_${username}`;
 };
 
+const setChunks = async (chunks, username) => {
+    for (const name in chunks) {
+        const chunk = chunks[name];
+        const chunkKey = getChunkKey(name, username);
+        if (chunk === null) {
+            await levelDb.del(chunkKey);
+        } else {
+            await levelDb.put(chunkKey, chunk);
+        }
+    }
+};
+
 const router = express.Router();
 
 const createAccountEndpoint = (path, handler) => {
@@ -318,7 +330,7 @@ createAccountEndpoint("/validateAuthHash", async (req, res, account) => {
 });
 
 createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
-    const { oldAuthHash, newAuthSalt, newAuthHash, newKeySalt } = req.body;
+    const { oldAuthHash, newAuthSalt, newAuthHash, newKeySalt, chunks } = req.body;
     if (!(await checkAuthHash(oldAuthHash, account, res))) {
         return;
     }
@@ -326,7 +338,7 @@ createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
     account.authHashHash = await bcrypt.hash(newAuthHash, 10);
     account.keySalt = newKeySalt;
     account.keyVersion += 1;
-    // TODO: Update chunks.
+    await setChunks(chunks, account.username);
     account.chunksVersion += 1;
     await putAccount(account);
     res.json({ success: true, keyVersion: account.keyVersion });
@@ -347,15 +359,7 @@ createAccountEndpoint("/getChunks", async (req, res, account) => {
 
 createAccountEndpoint("/setChunks", async (req, res, account) => {
     const { chunks } = req.body;
-    for (const name in chunks) {
-        const chunk = chunks[name];
-        const chunkKey = getChunkKey(name, account.username);
-        if (chunk === null) {
-            await levelDb.del(chunkKey);
-        } else {
-            await levelDb.put(chunkKey, chunk);
-        }
-    }
+    await setChunks(chunks, account.username);
     account.chunksVersion += 1;
     await putAccount(account);
     res.json({ success: true, chunksVersion: account.chunksVersion });
