@@ -1,4 +1,12 @@
 
+class ServerError extends Error {
+    
+    constructor(message, shortMessage) {
+        super(message);
+        this.shortMessage = shortMessage;
+    }
+}
+
 const makeRequest = async (path, data) => {
     const response = await fetch(path, {
         method: "POST",
@@ -10,7 +18,7 @@ const makeRequest = async (path, data) => {
     }
     const responseData = await response.json();
     if (!responseData.success) {
-        throw new Error(responseData.message);
+        throw new ServerError(responseData.message, responseData.shortMessage ?? null);
     }
     return responseData;
 };

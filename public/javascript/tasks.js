@@ -14,6 +14,8 @@ let keyHash;
 let keyVersion;
 let chunksVersion = null;
 let hasFault = false;
+let faultMessage = null;
+let shortFaultMessage = null;
 let encryptionKey;
 let rootContainer;
 let allCategories;
@@ -98,7 +100,7 @@ const updateSaveMessage = () => {
     let saveMessage;
     if (hasFault) {
         color = "#DD0000";
-        saveMessage = "Error while saving! Please reload page.";
+        saveMessage = "Communication error! " + shortFaultMessage;
     } else if (currentRequest?.isSave || requestQueue.some((request) => request.isSave)) {
         saveMessage = "Saving...";
     } else if (saveTimestamp === null) {
@@ -121,9 +123,8 @@ const checkRequestQueue = () => {
 
 const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) => {
     if (hasFault) {
-        const errorMessage = "Your client data is stale. Please reload this page.";
-        alert(errorMessage);
-        reject(new Error(errorMessage));
+        alert(faultMessage);
+        reject(new Error(faultMessage));
         return;
     }
     const wrappedFunc = async () => {
@@ -131,8 +132,10 @@ const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) =
         try {
             result = await requestFunc();
         } catch (error) {
-            alert(error.message);
             hasFault = true;
+            faultMessage = error.message;
+            shortFaultMessage = error.shortMessage ?? "Please reload page.";
+            alert(faultMessage);
             updateSaveMessage();
             reject(error);
             return;

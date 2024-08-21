@@ -180,8 +180,15 @@ const createAccountEndpoint = (path, handler) => {
         }
         const { chunksVersion, keyVersion } = req.body;
         await runAccountFunc(req, res, async (account) => {
-            if ((typeof chunksVersion !== "undefined" && chunksVersion !== account.chunksVersion)
-                    || (typeof keyVersion !== "undefined" && keyVersion !== account.keyVersion)) {
+            if (typeof keyVersion !== "undefined" && keyVersion !== account.keyVersion) {
+                res.json({
+                    success: false,
+                    message: "Your password has changed. Please log in again.",
+                    shortMessage: "Please log in again.",
+                });
+                return;
+            }
+            if (typeof chunksVersion !== "undefined" && chunksVersion !== account.chunksVersion) {
                 res.json({
                     success: false,
                     message: "Your client data is stale. Please reload this page.",
