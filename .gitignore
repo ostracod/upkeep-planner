@@ -1,5 +1,8 @@
 node_modules
 .env
 levelDb
+ssl.key
+ssl.crt
+ssl.ca-bundle
 
 

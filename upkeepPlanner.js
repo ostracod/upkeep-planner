@@ -2,6 +2,7 @@
 import * as pathUtils from "path";
 import * as fs from "fs";
 import * as http from "http";
+import * as https from "https";
 import { fileURLToPath } from "url";
 import * as dotenv from "dotenv";
 import express from "express";
@@ -20,6 +21,9 @@ const projectPath = pathUtils.dirname(fileURLToPath(import.meta.url));
 const databasePath = pathUtils.join(projectPath, "levelDb");
 const publicPath = pathUtils.join(projectPath, "public");
 const viewsPath = pathUtils.join(projectPath, "views");
+const privateKeyPath = pathUtils.join(projectPath, "ssl.key");
+const certificatePath = pathUtils.join(projectPath, "ssl.crt");
+const caBundlePath = pathUtils.join(projectPath, "ssl.ca-bundle");
 const isDevMode = (process.env.NODE_ENV === "development");
 
 const levelDb = new Level(databasePath, { valueEncoding: "json" });
@@ -434,7 +438,16 @@ const shutdownServer = async () => {
 process.on("SIGTERM", shutdownServer);
 process.on("SIGINT", shutdownServer);
 
-const server = http.createServer(expressApp);
+let server;
+if (isDevMode) {
+    server = http.createServer(expressApp);
+} else {
+    server = https.createServer({
+        key: fs.readFileSync(privateKeyPath, "utf8"),
+        cert: fs.readFileSync(certificatePath, "utf8"),
+        ca: fs.readFileSync(caBundlePath, "utf8"),
+    }, expressApp);
+}
 const portNumber = parseInt(process.env.PORT_NUMBER, 10);
 server.listen(portNumber, () => {
     console.log(`Listening on port ${portNumber}.`);
