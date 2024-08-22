@@ -69,7 +69,7 @@ const subtractDates = (date1, date2) => {
     const nativeDate2 = convertDateToNativeDate(date2);
     // `timestampDelta` is measured in seconds.
     const timestampDelta = (nativeDate1 - nativeDate2) / 1000;
-    return timestampDelta / secondsPerDay;
+    return Math.round(timestampDelta / secondsPerDay);
 };
 
 const datesAreEqual = (date1, date2) => (
@@ -225,6 +225,7 @@ const loadOldCompletions = async (tasks, isSave = false) => {
     }
 };
 
+// Old completions must have been previously loaded for oldCompletionsTask.
 const saveCompletions = async (oldCompletionsTask = null) => {
     const tasks = getAllTasks();
     const surplusCount = recentCompletions.size - tasks.length;

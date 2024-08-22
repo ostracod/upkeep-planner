@@ -70,7 +70,7 @@ const changePassword = async () => {
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const plannerItemsChunk = chunks.plannerItems;
     if (plannerItemsChunk !== null) {
-        const { plannerItems } = chunks.plannerItems;
+        const { plannerItems } = plannerItemsChunk;
         const taskIds = [];
         getTaskIds(taskIds, plannerItems);
         const oldCompletionsKeys = taskIds.map((id) => "oldCompletions." + id);
