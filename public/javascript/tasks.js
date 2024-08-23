@@ -424,7 +424,7 @@ class Completion {
             alert("Please enter a date for the completion.");
             return;
         }
-        this.date = convertStringToDate(dateString)
+        this.date = convertStringToDate(dateString);
         this.timestamp = convertDateToTimestamp(this.date);
         this.dateIsApproximate = this.editIsApproxTag.checked;
         this.notes = this.editNotesTag.value;
@@ -758,8 +758,7 @@ class Task extends PlannerItem {
         if (!dateIsInActiveMonth(currentDate, this.activeMonths)) {
             return statusColors.inactive;
         }
-        const completionDate = this.getLastCompletionDate();
-        if (completionDate === null) {
+        if (this.getLastCompletion() === null) {
             return statusColors.neverCompleted;
         }
         return statusColors.completed;
@@ -789,15 +788,15 @@ class Task extends PlannerItem {
     displayDueDate() {
         let dueDateText;
         let displayStyle;
-        if (currentTask.dueDate === null) {
+        if (this.dueDate === null) {
             dueDateText = "";
             displayStyle = "none";
         } else {
-            const dateString = convertDateToString(currentTask.dueDate);
-            if (currentTask.frequency === null) {
+            const dateString = convertDateToString(this.dueDate);
+            if (this.frequency === null) {
                 dueDateText = `Due on ${dateString}`;
             } else {
-                const frequencyText = pluralize(currentTask.frequency, "day");
+                const frequencyText = pluralize(this.frequency, "day");
                 dueDateText = `Next due on ${dateString}; repeats every ${frequencyText}`;
             }
             displayStyle = "";
