@@ -246,7 +246,10 @@ const saveCompletions = async (oldCompletionsTask = null) => {
         const tasksToUpdate = new Set();
         for (const completion of previousCompletions) {
             if (!completion.isRecent()) {
-                tasksToUpdate.add(completion.parentTask);
+                const { parentTask } = completion;
+                if (parentTask !== oldCompletionsTask) {
+                    tasksToUpdate.add(parentTask);
+                }
             }
         }
         await loadOldCompletions(tasksToUpdate, true);
