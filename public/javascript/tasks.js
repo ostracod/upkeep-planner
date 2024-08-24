@@ -1161,6 +1161,7 @@ const updateCategoryOptions = (categoryToSelect) => {
         selectTag.appendChild(optionTag);
     }
     const parentIndex = allCategories.indexOf(categoryToSelect);
+    // Note that if categoryToSelect is null, then selectTag.value will be -1.
     selectTag.value = `${parentIndex}`;
 };
 
@@ -1478,13 +1479,6 @@ const viewTask = async (task = null) => {
     showPage("viewTask");
     document.getElementById("viewTaskName").innerHTML = currentTask.name;
     currentTask.displayDueDate();
-    const parentPlannerItem = currentTask.getParentPlannerItem();
-    let parentName;
-    if (parentPlannerItem === null) {
-        parentName = rootCategoryName;
-    } else {
-        parentName = parentPlannerItem.name;
-    }
     const { upcomingPeriod, gracePeriod, activeMonths } = currentTask;
     let upcomingText;
     let upcomingStyle;
@@ -1530,6 +1524,10 @@ const viewTask = async (task = null) => {
     const monthsTag = document.getElementById("viewActiveMonths");
     monthsTag.innerHTML = monthsText;
     monthsTag.style.display = monthsStyle;
+    const parentPlannerItem = currentTask.getParentPlannerItem();
+    const parentName = (parentPlannerItem === null)
+        ? rootCategoryName
+        : parentPlannerItem.name;
     document.getElementById("viewParentCategory").innerHTML = parentName;
     const notesTag = document.getElementById("viewTaskNotes");
     let notesStyle;
@@ -1625,12 +1623,14 @@ const initializePage = async () => {
             text: "Select All",
             onClick: () => {
                 setAllActiveMonths(true);
+                updateEditDueDate();
             },
         },
         {
             text: "Deselect All",
             onClick: () => {
                 setAllActiveMonths(false);
+                updateEditDueDate();
             },
         },
     ]).divTag;
