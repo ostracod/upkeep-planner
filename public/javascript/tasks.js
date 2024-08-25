@@ -5,7 +5,7 @@ const pageIds = ["loadingScreen", "viewPlannerItems", "editTask", "viewTask"];
 const secondsPerDay = 60 * 60 * 24;
 const monthAmount = 12;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const completionFlushThreshold = 3; // TODO: Increase this number.
+const completionFlushThreshold = 50;
 
 const requestQueue = [];
 let currentRequest = null;
@@ -152,7 +152,6 @@ const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) =
 });
 
 const getChunks = async (names, isSave = false) => {
-    console.log("getChunks " + names.join(", "));
     return await dispatchRequest(isSave, async () => {
         const body = { keyVersion, names };
         if (chunksVersion !== null) {
@@ -170,7 +169,6 @@ const getChunks = async (names, isSave = false) => {
 };
 
 const setChunks = async (chunks) => {
-    console.log("setChunks " + Object.keys(chunks).join(", "));
     const encryptedChunks = {};
     for (const name in chunks) {
         const chunk = chunks[name];
@@ -229,7 +227,6 @@ const loadOldCompletions = async (tasks, isSave = false) => {
 const saveCompletions = async (oldCompletionsTask = null) => {
     const tasks = getAllTasks();
     const surplusCount = recentCompletions.size - tasks.length;
-    console.log("surplusCount = " + surplusCount);
     const oldCompletionsTasks = [];
     if (oldCompletionsTask !== null) {
         oldCompletionsTasks.push(oldCompletionsTask);
