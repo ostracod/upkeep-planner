@@ -24,6 +24,8 @@ let nextTaskId;
 let recentCompletions = new Set();
 let activeMonthCheckboxes;
 let lastTimerEventDate = null;
+let currentPageId = null;
+let plannerItemsScroll = null;
 
 const pluralize = (amount, noun) => (
     (amount === 1) ? `${amount} ${noun}` : `${amount} ${noun}s`
@@ -1133,9 +1135,20 @@ const jsonToPlannerItem = (data) => {
 };
 
 const showPage = (idToShow) => {
+    if (currentPageId === "viewPlannerItems") {
+        plannerItemsScroll = window.scrollY;
+    }
     for (const id of pageIds) {
         document.getElementById(id).style.display = (id === idToShow) ? "" : "none";
     }
+    if (idToShow === "viewPlannerItems") {
+        if (plannerItemsScroll !== null) {
+            window.scroll({ top: plannerItemsScroll, behavior: "instant" });
+        }
+    } else {
+        window.scroll({ top: 0, behavior: "instant" });
+    }
+    currentPageId = idToShow;
 }
 
 const showLoadingScreen = (message) => {
