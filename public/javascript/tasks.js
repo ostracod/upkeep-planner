@@ -26,7 +26,7 @@ let activeMonthCheckboxes;
 let lastTimerEventDate = null;
 let currentPageId = null;
 let plannerItemsScroll = null;
-let taskFilter = "all";
+let taskFilter;
 
 const pluralize = (amount, noun) => (
     (amount === 1) ? `${amount} ${noun}` : `${amount} ${noun}s`
@@ -185,6 +185,19 @@ const setChunks = async (chunks) => {
             { chunksVersion, keyVersion, chunks: encryptedChunks },
         );
         chunksVersion = response.chunksVersion;
+    });
+};
+
+const readTaskFilter = async () => {
+    return await dispatchRequest(false, async () => {
+        return (await makeRequest("/getTaskFilter", {})).taskFilter;
+    });
+};
+
+const writeTaskFilter = async () => {
+    const filterToWrite = taskFilter;
+    await dispatchRequest(true, async () => {
+        await makeRequest("/setTaskFilter", { taskFilter: filterToWrite });
     });
 };
 
@@ -456,6 +469,9 @@ class Container {
     constructor(tag, parentPlannerItem = null) {
         this.tag = tag;
         this.parentPlannerItem = parentPlannerItem;
+        if (this.parentPlannerItem !== null) {
+            this.parentPlannerItem.container = this;
+        }
         this.plannerItems = [];
     }
     
@@ -683,6 +699,7 @@ class Task extends PlannerItem {
         this.updateCompletionDateTag();
         this.updateDueDateTag();
         this.updateStatus();
+        this.updateVisibility();
     }
     
     createTag() {
@@ -787,14 +804,12 @@ class Task extends PlannerItem {
         return "completed";
     }
     
-    updateStatus(shouldUpdateVisibility = true) {
+    updateStatus() {
         const status = this.determineStatus();
         if (status !== this.status) {
             this.status = status;
             this.statusCircle.style.background = statusColors[this.status];
-            if (shouldUpdateVisibility) {
-                this.updateVisibility();
-            }
+            this.updateVisibility();
         }
     }
     
@@ -902,7 +917,7 @@ class Task extends PlannerItem {
         if (this === currentTask) {
             this.displayDueDate();
         }
-        this.updateStatus(false);
+        this.updateStatus();
         this.updateVisibility();
     }
     
@@ -1032,7 +1047,7 @@ class Category extends PlannerItem {
     
     constructor(name, containerData = null) {
         super(name);
-        this.container = jsonToContainer(this.containerTag, this, containerData);
+        jsonToContainer(this.containerTag, this, containerData);
         this.updateVisibility();
     }
     
@@ -1687,13 +1702,13 @@ const updatePlannerItemVisibilities = () => {
 };
 
 const clearTaskFilter = () => {
-    taskFilter = "all";
-    document.getElementById("taskFilter").value = taskFilter;
-    updatePlannerItemVisibilities();
+    document.getElementById("taskFilter").value = "all";
+    handleTaskFilterChange();
 };
 
 const handleTaskFilterChange = () => {
     taskFilter = document.getElementById("taskFilter").value;
+    writeTaskFilter();
     updatePlannerItemVisibilities();
 };
 
@@ -1702,7 +1717,7 @@ const timerEvent = () => {
     if (lastTimerEventDate === null || !datesAreEqual(lastTimerEventDate, currentDate)) {
         const tasks = getAllTasks();
         for (const task of tasks) {
-            task.updateStatus(false);
+            task.updateStatus();
         }
         updatePlannerItemVisibilities();
         lastTimerEventDate = currentDate;
@@ -1756,6 +1771,8 @@ const initializePage = async () => {
     monthsTag.appendChild(buttonsTag);
     createStatusLegend(document.getElementById("statusLegend"));
     applyCircleColors();
+    taskFilter = await readTaskFilter();
+    document.getElementById("taskFilter").value = taskFilter;
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const rootContainerTag = document.getElementById("rootContainer");
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);

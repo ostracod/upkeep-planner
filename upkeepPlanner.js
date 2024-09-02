@@ -251,6 +251,7 @@ router.post("/createAccountAction", async (req, res) => {
         keyVersion: 0,
         emailAddress,
         chunksVersion: 0,
+        taskFilter: "all",
     });
     res.json({ success: true });
 });
@@ -374,6 +375,19 @@ createAccountEndpoint("/setChunks", async (req, res, account) => {
     account.chunksVersion += 1;
     await putAccount(account);
     res.json({ success: true, chunksVersion: account.chunksVersion });
+});
+
+createAccountEndpoint("/getTaskFilter", async (req, res, account) => {
+    res.json({
+        success: true,
+        taskFilter: account.taskFilter ?? "all",
+    });
+});
+
+createAccountEndpoint("/setTaskFilter", async (req, res, account) => {
+    account.taskFilter = req.body.taskFilter;
+    await putAccount(account);
+    res.json({ success: true });
 });
 
 const expressApp = express();
