@@ -26,6 +26,7 @@ let activeMonthCheckboxes;
 let lastTimerEventDate = null;
 let currentPageId = null;
 let plannerItemsScroll = null;
+let taskFilter = "all";
 
 const pluralize = (amount, noun) => (
     (amount === 1) ? `${amount} ${noun}` : `${amount} ${noun}s`
@@ -471,6 +472,9 @@ class Container {
             this.plannerItems.splice(index, 0, plannerItem);
         }
         plannerItem.parentContainer = this;
+        if (this.parentPlannerItem !== null) {
+            this.parentPlannerItem.updateVisibility();
+        }
     }
     
     findItem(plannerItem) {
@@ -482,6 +486,9 @@ class Container {
         const index = this.findItem(plannerItem);
         this.plannerItems.splice(index, 1);
         plannerItem.parentContainer = null;
+        if (this.parentPlannerItem !== null) {
+            this.parentPlannerItem.updateVisibility();
+        }
     }
     
     getItems(filter) {
@@ -509,12 +516,13 @@ class Container {
 
 class PlannerItem {
     // Concrete subclasses of PlannerItem must implement these methods:
-    // createTag, toJson
+    // createTag, toJson, updateVisibility
     
     constructor(name) {
         this.name = name;
         this.tag = this.createTag();
         this.parentContainer = null;
+        this.isVisible = true;
     }
     
     createButtons(buttonDefs) {
@@ -568,7 +576,7 @@ class PlannerItem {
     }
     
     getParentPlannerItem() {
-        return this.parentContainer.parentPlannerItem;
+        return this.parentContainer?.parentPlannerItem ?? null;
     }
     
     setName(name) {
@@ -642,6 +650,18 @@ class PlannerItem {
         container.addItem(this, index);
         savePlannerItems();
     }
+    
+    setVisibility(isVisible) {
+        if (isVisible === this.isVisible) {
+            return;
+        }
+        this.isVisible = isVisible;
+        this.tag.style.display = this.isVisible ? "" : "none";
+        const parentPlannerItem = this.getParentPlannerItem();
+        if (parentPlannerItem !== null) {
+            parentPlannerItem.updateVisibility();
+        }
+    }
 }
 
 class Task extends PlannerItem {
@@ -659,9 +679,10 @@ class Task extends PlannerItem {
         this.completions = [];
         this.loadedOldCompletions = false;
         this.isDeleted = false;
+        this.status = null;
         this.updateCompletionDateTag();
         this.updateDueDateTag();
-        this.updateStatusCircle();
+        this.updateStatus();
     }
     
     createTag() {
@@ -741,7 +762,7 @@ class Task extends PlannerItem {
         this.dueDateTag.style.display = displayStyle;
     }
     
-    getStatusCircleColor() {
+    determineStatus() {
         const currentDate = getCurrentDate();
         const dueDateOffset = (this.dueDate === null)
             ? null
@@ -749,25 +770,32 @@ class Task extends PlannerItem {
         if (dueDateOffset !== null) {
             if (dueDateOffset >= 0) {
                 if (this.gracePeriod !== null && dueDateOffset < this.gracePeriod) {
-                    return statusColors.grace;
+                    return "grace";
                 }
-                return statusColors.overdue;
+                return "overdue";
             }
             if (this.upcomingPeriod !== null && dueDateOffset >= -this.upcomingPeriod) {
-                return statusColors.upcoming;
+                return "upcoming";
             }
         }
         if (!dateIsInActiveMonth(currentDate, this.activeMonths)) {
-            return statusColors.inactive;
+            return "inactive";
         }
         if (this.getLastCompletion() === null) {
-            return statusColors.neverCompleted;
+            return "neverCompleted";
         }
-        return statusColors.completed;
+        return "completed";
     }
     
-    updateStatusCircle() {
-        this.statusCircle.style.background = this.getStatusCircleColor();
+    updateStatus(shouldUpdateVisibility = true) {
+        const status = this.determineStatus();
+        if (status !== this.status) {
+            this.status = status;
+            this.statusCircle.style.background = statusColors[this.status];
+            if (shouldUpdateVisibility) {
+                this.updateVisibility();
+            }
+        }
     }
     
     displayCompletions() {
@@ -856,7 +884,7 @@ class Task extends PlannerItem {
         if (this === currentTask) {
             this.displayCompletions();
         }
-        this.updateStatusCircle();
+        this.updateStatus();
     }
     
     handleCompletionsChange(addedNewCompletion, shouldSaveOldCompletions) {
@@ -874,7 +902,8 @@ class Task extends PlannerItem {
         if (this === currentTask) {
             this.displayDueDate();
         }
-        this.updateStatusCircle();
+        this.updateStatus(false);
+        this.updateVisibility();
     }
     
     addCompletionHelper(completion) {
@@ -941,6 +970,38 @@ class Task extends PlannerItem {
         this.remove();
     }
     
+    determineVisibility() {
+        if (taskFilter === "all") {
+            return true;
+        }
+        if (this.dueDate === null) {
+            return false;
+        }
+        const terms = taskFilter.split("_");
+        if (terms[0] === "days") {
+            const threshold = parseInt(terms[1], 10);
+            const currentDate = getCurrentDate();
+            const dueDateOffset = subtractDates(currentDate, this.dueDate);
+            return (dueDateOffset > -threshold);
+        } else if (terms[0] === "status") {
+            const threshold = terms[1];
+            const orderedStatuses = ["upcoming", "grace", "overdue"];
+            const statusIndex = orderedStatuses.indexOf(this.status);
+            if (statusIndex < 0) {
+                return false;
+            }
+            const thresholdIndex = orderedStatuses.indexOf(threshold);
+            return (statusIndex >= thresholdIndex);
+        } else {
+            throw new Error(`Unknown task filter "${taskFilter}".`);
+        }
+    }
+    
+    updateVisibility(shouldRecur = false) {
+        const isVisible = this.determineVisibility();
+        this.setVisibility(isVisible);
+    }
+    
     toJson() {
         return {
             type: "task",
@@ -972,6 +1033,7 @@ class Category extends PlannerItem {
     constructor(name, containerData = null) {
         super(name);
         this.container = jsonToContainer(this.containerTag, this, containerData);
+        this.updateVisibility();
     }
     
     createTag() {
@@ -1056,6 +1118,9 @@ class Category extends PlannerItem {
     addNewCategory() {
         const category = new Category(newCategoryName);
         this.addItem(category);
+        if (!category.isVisible) {
+            clearTaskFilter();
+        }
         savePlannerItems();
     }
     
@@ -1094,6 +1159,22 @@ class Category extends PlannerItem {
             parentContainer.addItem(child, index + offset);
         }
         savePlannerItems();
+    }
+    
+    updateVisibility(shouldRecur = false) {
+        if (shouldRecur) {
+            for (const plannerItem of this.container.plannerItems) {
+                plannerItem.updateVisibility(shouldRecur);
+            }
+        }
+        if (taskFilter === "all") {
+            this.setVisibility(true);
+        } else {
+            const isVisible = this.container.plannerItems.some(
+                (plannerItem) => plannerItem.isVisible,
+            );
+            this.setVisibility(isVisible);
+        }
     }
     
     toJson() {
@@ -1435,6 +1516,9 @@ const saveTask = () => {
             notes,
         });
         parentContainer.addItem(task);
+        if (!task.isVisible) {
+            clearTaskFilter();
+        }
         task.loadedOldCompletions = true;
         setChunks({ [task.getOldCompletionsKey()]: [] });
         viewPlannerItems();
@@ -1590,7 +1674,27 @@ const saveNewCompletion = () => {
 const addRootCategory = () => {
     const category = new Category(newCategoryName);
     rootContainer.addItem(category);
+    if (!category.isVisible) {
+        clearTaskFilter();
+    }
     savePlannerItems();
+};
+
+const updatePlannerItemVisibilities = () => {
+    for (const plannerItem of rootContainer.plannerItems) {
+        plannerItem.updateVisibility(true);
+    }
+};
+
+const clearTaskFilter = () => {
+    taskFilter = "all";
+    document.getElementById("taskFilter").value = taskFilter;
+    updatePlannerItemVisibilities();
+};
+
+const handleTaskFilterChange = () => {
+    taskFilter = document.getElementById("taskFilter").value;
+    updatePlannerItemVisibilities();
 };
 
 const timerEvent = () => {
@@ -1598,8 +1702,9 @@ const timerEvent = () => {
     if (lastTimerEventDate === null || !datesAreEqual(lastTimerEventDate, currentDate)) {
         const tasks = getAllTasks();
         for (const task of tasks) {
-            task.updateStatusCircle();
+            task.updateStatus(false);
         }
+        updatePlannerItemVisibilities();
         lastTimerEventDate = currentDate;
     }
     if (saveTimestamp !== null && Date.now() / 1000 > saveTimestamp + 1.2) {

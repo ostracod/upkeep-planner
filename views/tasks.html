@@ -2,6 +2,17 @@
     <p id="loadMessage"></p>
 </div>
 <div id="viewPlannerItems" style="display: none;">
+    <p>
+        Filter:
+        <select id="taskFilter" onchange="handleTaskFilterChange();">
+            <option value="all">Show all</option>
+            <option value="days_7">Due within 7 days</option>
+            <option value="days_30">Due within 30 days</option>
+            <option value="status_upcoming">Upcoming period</option>
+            <option value="status_grace">Grace period</option>
+            <option value="status_overdue">Overdue</option>
+        </select>
+    </p>
     <div id="rootContainer"></div>
     <p>
         <button onclick="startTaskCreation();">Add Task</button><button onclick="addRootCategory();">Add Category</button>
