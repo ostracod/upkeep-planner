@@ -991,25 +991,25 @@ class Task extends PlannerItem {
         this.remove();
     }
     
-    determineVisibility() {
-        if (taskFilter === "all") {
+    evaluateFilterTerm(term) {
+        if (term === "all") {
             return true;
         }
         const hasNoDueDate = (this.dueDate === null);
-        if (taskFilter === "noDueDate") {
+        if (term === "noDueDate") {
             return hasNoDueDate;
         }
         if (hasNoDueDate) {
             return false;
         }
-        const terms = taskFilter.split("_");
-        if (terms[0] === "days") {
-            const threshold = parseInt(terms[1], 10);
+        const components = term.split("_");
+        if (components[0] === "days") {
+            const threshold = parseInt(components[1], 10);
             const currentDate = getCurrentDate();
             const dueDateOffset = subtractDates(currentDate, this.dueDate);
             return (dueDateOffset > -threshold);
-        } else if (terms[0] === "status") {
-            const threshold = terms[1];
+        } else if (components[0] === "status") {
+            const threshold = components[1];
             const orderedStatuses = ["upcoming", "grace", "overdue"];
             const statusIndex = orderedStatuses.indexOf(this.status);
             if (statusIndex < 0) {
@@ -1018,12 +1018,31 @@ class Task extends PlannerItem {
             const thresholdIndex = orderedStatuses.indexOf(threshold);
             return (statusIndex >= thresholdIndex);
         } else {
-            throw new Error(`Unknown task filter "${taskFilter}".`);
+            throw new Error(`Unknown task filter "${term}".`);
         }
     }
     
+    evaluateFilter(terms, startIndex) {
+        let index = startIndex;
+        const firstTerm = terms[index];
+        index += 1;
+        let hasMatch;
+        if (firstTerm === "OR") {
+            const result1 = this.evaluateFilter(terms, index);
+            ({ index } = result1);
+            const result2 = this.evaluateFilter(terms, index);
+            ({ index } = result2);
+            hasMatch = (result1.hasMatch || result2.hasMatch);
+        } else {
+            hasMatch = this.evaluateFilterTerm(firstTerm);
+        }
+        return { hasMatch, index };
+    }
+    
     updateVisibility(shouldRecur = false) {
-        const isVisible = this.determineVisibility();
+        // Nothing like a good DSL to spice things up.
+        const filterTerms = taskFilter.split(" ");
+        const isVisible = this.evaluateFilter(filterTerms, 0).hasMatch;
         this.setVisibility(isVisible);
     }
     
