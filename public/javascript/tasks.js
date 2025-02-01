@@ -488,7 +488,9 @@ class Container {
             this.plannerItems.splice(index, 0, plannerItem);
         }
         plannerItem.parentContainer = this;
-        if (this.parentPlannerItem !== null) {
+        if (this.parentPlannerItem === null) {
+            updatePlannerItemsPlaceholder();
+        } else {
             this.parentPlannerItem.updateVisibility();
         }
     }
@@ -502,7 +504,9 @@ class Container {
         const index = this.findItem(plannerItem);
         this.plannerItems.splice(index, 1);
         plannerItem.parentContainer = null;
-        if (this.parentPlannerItem !== null) {
+        if (this.parentPlannerItem === null) {
+            updatePlannerItemsPlaceholder();
+        } else {
             this.parentPlannerItem.updateVisibility();
         }
     }
@@ -674,7 +678,9 @@ class PlannerItem {
         this.isVisible = isVisible;
         this.tag.style.display = this.isVisible ? "" : "none";
         const parentPlannerItem = this.getParentPlannerItem();
-        if (parentPlannerItem !== null) {
+        if (parentPlannerItem === null) {
+            updatePlannerItemsPlaceholder();
+        } else {
             parentPlannerItem.updateVisibility();
         }
     }
@@ -989,7 +995,11 @@ class Task extends PlannerItem {
         if (taskFilter === "all") {
             return true;
         }
-        if (this.dueDate === null) {
+        const hasNoDueDate = (this.dueDate === null);
+        if (taskFilter === "noDueDate") {
+            return hasNoDueDate;
+        }
+        if (hasNoDueDate) {
             return false;
         }
         const terms = taskFilter.split("_");
@@ -1701,6 +1711,24 @@ const updatePlannerItemVisibilities = () => {
     }
 };
 
+const updatePlannerItemsPlaceholder = () => {
+    if (typeof rootContainer === "undefined") {
+        return;
+    }
+    const placeholderTag = document.getElementById("plannerItemsPlaceholder");
+    const { plannerItems } = rootContainer;
+    let message;
+    if (plannerItems.length <= 0) {
+        message = "You don't have any tasks yet. Click the \"Add Task\" button to get started.";
+    } else if (plannerItems.some((plannerItem) => plannerItem.isVisible)) {
+        message = null;
+    } else {
+        message = "No items match the selected filter.";
+    }
+    placeholderTag.style.display = (message === null) ? "none" : "block";
+    placeholderTag.innerHTML = message;
+};
+
 const clearTaskFilter = () => {
     document.getElementById("taskFilter").value = "all";
     handleTaskFilterChange();
@@ -1776,6 +1804,7 @@ const initializePage = async () => {
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const rootContainerTag = document.getElementById("rootContainer");
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);
+    updatePlannerItemsPlaceholder();
     const tasks = getAllTasks();
     const taskMap = new Map();
     nextTaskId = 0;
