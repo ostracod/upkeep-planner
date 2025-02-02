@@ -107,9 +107,16 @@
     </p>
     <div id="pastCompletions" style="border: 1px #AAAAAA solid; padding: 10px; padding-left: 20px; max-height: 200px; overflow-y: scroll;"></div>
 </div>
-<p>
-    <a href="/changePassword">Change Password</a> | <a href="/logout">Log Out</a>
-</p>
+<div class="paragraph">
+    <div style="float: left;">
+        <a href="/changePassword">Change Password</a> | <a href="/logout">Log Out</a>
+    </div>
+    <div style="float: right;">
+        <button id="downloadButton" onclick="downloadJsonFile();">Download JSON</button>
+        <span id="downloadMessage" style="display: none;">Downloading JSON...</span>
+    </div>
+    <br style="clear: both;" />
+</div>
 <script>
 initializePage();
 </script>

@@ -6,6 +6,11 @@ body {
     margin: 0px;
 }
 
+.paragraph {
+    margin-top: 13px;
+    margin-bottom: 13px;
+}
+
 #content {
     padding: 15px;
     margin-left: auto;

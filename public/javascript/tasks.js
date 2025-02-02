@@ -1759,6 +1759,39 @@ const handleTaskFilterChange = () => {
     updatePlannerItemVisibilities();
 };
 
+const downloadJsonFile = async () => {
+    const buttonTag = document.getElementById("downloadButton");
+    const messageTag = document.getElementById("downloadMessage");
+    buttonTag.style.display = "none";
+    messageTag.style.display = "";
+    await loadOldCompletions(getAllTasks());
+    // Retrieve all tasks again in case they changed during `loadOldCompletions`.
+    const tasks = getAllTasks();
+    const completionsData = [];
+    for (const task of tasks) {
+        for (const completion of task.completions) {
+            completionsData.push(completion.toJson());
+        }
+    }
+    const jsonData = {
+        rootContainer: rootContainer.toJson(),
+        completions: completionsData,
+    }
+    const jsonText = JSON.stringify(jsonData);
+    const file = new File([jsonText], "upkeepPlannerData.json", { type: "application/json" });
+    const url = URL.createObjectURL(file);
+    const linkTag = document.createElement("a");
+    linkTag.style.display = "none";
+    linkTag.href = url;
+    linkTag.download = file.name;
+    document.body.appendChild(linkTag);
+    linkTag.click();
+    document.body.removeChild(linkTag);
+    window.URL.revokeObjectURL(url);
+    buttonTag.style.display = "";
+    messageTag.style.display = "none";
+};
+
 const timerEvent = () => {
     const currentDate = getCurrentDate();
     if (lastTimerEventDate === null || !datesAreEqual(lastTimerEventDate, currentDate)) {
