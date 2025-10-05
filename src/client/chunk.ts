@@ -1,20 +1,17 @@
 
-// TODO: Remove this dummy export statement.
-export {};
-
 const ivLength = 16;
 
-const convertTextToBuffer = (text) => {
-    const textEncoder = new TextEncoder("utf-8");
+const convertTextToBuffer = (text: string): ArrayBuffer  => {
+    const textEncoder = new TextEncoder();
     return textEncoder.encode(text).buffer;
 };
 
-const convertBufferToText = (buffer) => {
-    const textDecoder = new TextDecoder("utf-8");
+const convertBufferToText = (buffer: ArrayBuffer): string => {
+    const textDecoder = new TextDecoder();
     return textDecoder.decode(new Uint8Array(buffer));
 };
 
-const convertBase64ToBuffer = (base64) => {
+const convertBase64ToBuffer = (base64: string): ArrayBuffer => {
     const binText = atob(base64);
     const byteArray = new Uint8Array(binText.length);
     for (let index = 0; index < binText.length; index++) {
@@ -23,9 +20,9 @@ const convertBase64ToBuffer = (base64) => {
     return byteArray.buffer;
 };
 
-const convertBufferToBase64 = (buffer) => {
+const convertBufferToBase64 = (buffer: ArrayBuffer): string => {
     const byteArray = new Uint8Array(buffer);
-    const binChars = [];
+    const binChars: string[] = [];
     for (let index = 0; index < byteArray.length; index++) {
         const charCode = byteArray[index];
         binChars.push(String.fromCharCode(charCode));
@@ -34,14 +31,14 @@ const convertBufferToBase64 = (buffer) => {
     return btoa(binText);
 };
 
-const concatenateBuffers = (buffer1, buffer2) => {
+const concatenateBuffers = (buffer1: ArrayBuffer, buffer2: ArrayBuffer): ArrayBuffer => {
     const byteArray = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
     byteArray.set(new Uint8Array(buffer1), 0);
     byteArray.set(new Uint8Array(buffer2), buffer1.byteLength);
     return byteArray.buffer;
 };
 
-const getEncryptionKey = async (passwordText) => {
+export const getEncryptionKey = async (passwordText: string): Promise<CryptoKey> => {
     const passwordBuffer = convertTextToBuffer(passwordText);
     const keyBuffer = await crypto.subtle.digest("SHA-256", passwordBuffer);
     return await crypto.subtle.importKey(
@@ -53,7 +50,7 @@ const getEncryptionKey = async (passwordText) => {
     );
 };
 
-const encryptChunk = async (chunk, encryptionKey) => {
+export const encryptChunk = async (chunk: any, encryptionKey: CryptoKey): Promise<string> => {
     const ivBuffer = new ArrayBuffer(ivLength);
     crypto.getRandomValues(new Uint8Array(ivBuffer));
     const inputText = JSON.stringify(chunk);
@@ -67,10 +64,10 @@ const encryptChunk = async (chunk, encryptionKey) => {
     return convertBufferToBase64(bufferWithHeader);
 };
 
-const decryptChunk = async (chunk, encryptionKey) => {
+export const decryptChunk = async (chunk: string, encryptionKey: CryptoKey): Promise<any> => {
     const bufferWithHeader = convertBase64ToBuffer(chunk);
     const ivBuffer = bufferWithHeader.slice(0, ivLength);
-    const encryptedBuffer = bufferWithHeader.slice(ivLength, bufferWithHeader.length);
+    const encryptedBuffer = bufferWithHeader.slice(ivLength, bufferWithHeader.byteLength);
     const decryptedBuffer = await crypto.subtle.decrypt(
         { name: "AES-GCM", iv: ivBuffer, tagLength: 128 },
         encryptionKey,

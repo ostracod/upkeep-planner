@@ -1,16 +1,16 @@
 
-// TODO: Remove this dummy export statement.
-export {};
+export type TaskStatusName = "neverCompleted" | "completed" | "upcoming" | "grace" | "overdue" | "inactive";
 
 class ServerError extends Error {
+    shortMessage: string;
     
-    constructor(message, shortMessage) {
+    constructor(message: string, shortMessage: string) {
         super(message);
         this.shortMessage = shortMessage;
     }
 }
 
-const makeRequest = async (path, data) => {
+export const makeRequest = async (path: string, data: any): Promise<any> => {
     const response = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -26,12 +26,15 @@ const makeRequest = async (path, data) => {
     return responseData;
 };
 
-const taskStatuses = [];
-const statusColors = {};
+const taskStatuses: TaskStatus[] = [];
+export const statusColors: { [name: TaskStatus]: string } = {};
 
 class TaskStatus {
+    name: TaskStatusName;
+    displayName: string;
+    color: string;
     
-    constructor(name, displayName, color) {
+    constructor(name: TaskStatusName, displayName: string, color: string) {
         this.name = name;
         this.displayName = displayName;
         this.color = color;
@@ -40,14 +43,14 @@ class TaskStatus {
     }
 }
 
-new TaskStatus ("neverCompleted", "Never completed", "#4444FF");
-new TaskStatus ("completed", "Completed", "#44FF44");
-new TaskStatus ("upcoming", "Due date is upcoming", "#DDDD00");
-new TaskStatus ("grace", "Grace period after due date", "#FF8800");
-new TaskStatus ("overdue", "Overdue", "#FF0000");
-new TaskStatus ("inactive", "Out of season", "#CCCCCC");
+new TaskStatus("neverCompleted", "Never completed", "#4444FF");
+new TaskStatus("completed", "Completed", "#44FF44");
+new TaskStatus("upcoming", "Due date is upcoming", "#DDDD00");
+new TaskStatus("grace", "Grace period after due date", "#FF8800");
+new TaskStatus("overdue", "Overdue", "#FF0000");
+new TaskStatus("inactive", "Out of season", "#CCCCCC");
 
-const createStatusLegend = (destTag) => {
+export const createStatusLegend = (destTag: HTMLElement): void => {
     destTag.style.lineHeight = "22px";
     for (let index = 0; index < taskStatuses.length; index++) {
         if (index > 0) {
@@ -62,11 +65,11 @@ const createStatusLegend = (destTag) => {
     }
 }
 
-const applyCircleColors = () => {
+export const applyCircleColors = (): void => {
     for (const name in statusColors) {
         const color = statusColors[name];
         const tags = document.getElementsByName(name + "Circle");
-        for (const tag of tags) {
+        for (const tag of Array.from(tags)) {
             tag.style.background = color;
         }
     }

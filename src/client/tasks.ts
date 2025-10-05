@@ -1,6 +1,57 @@
 
-// TODO: Remove this dummy export statement.
-export {};
+import { TaskStatusName, statusColors, makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
+import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
+
+type NativeDate = Date;
+
+interface PlannerDate {
+    year: number;
+    month: number;
+    day: number;
+}
+
+interface ButtonDef {
+    text: string;
+    onClick: () => void;
+}
+
+interface Request {
+    isSave: boolean;
+    func: () => Promise<void>;
+}
+
+interface CompletionJson {
+    taskId: number;
+    date: PlannerDate;
+    dateIsApproximate: boolean;
+    notes: string;
+}
+
+interface ContainerJson {
+    plannerItems: PlannerItemJson[];
+}
+
+interface PlannerItemJson {
+    type: string;
+    name: string;
+}
+
+interface TaskJson extends PlannerItemJson {
+    type: "task";
+    id: number;
+    frequency: number | null;
+    dueDate: PlannerDate | null;
+    dueDateIsManual: boolean | null;
+    upcomingPeriod: number | null;
+    gracePeriod: number | null;
+    activeMonths: boolean[] | null;
+    notes: string;
+}
+
+interface CategoryJson extends PlannerItemJson {
+    type: "category";
+    container: ContainerJson;
+}
 
 const newCategoryName = "New Category";
 const rootCategoryName = "Top Level";
@@ -10,52 +61,54 @@ const monthAmount = 12;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const completionFlushThreshold = 50;
 
-const requestQueue = [];
-let currentRequest = null;
-let saveTimestamp = null;
-let keyHash;
-let keyVersion;
-let chunksVersion = null;
+const requestQueue: Request[] = [];
+let currentRequest: Request | null = null;
+let saveTimestamp: number | null = null;
+let keyHash: string;
+let keyVersion: number;
+let chunksVersion: number | null = null;
 let hasFault = false;
-let faultMessage = null;
-let shortFaultMessage = null;
-let encryptionKey;
-let rootContainer;
-let allCategories;
-let currentTask;
-let nextTaskId;
-let recentCompletions = new Set();
-let activeMonthCheckboxes;
-let lastTimerEventDate = null;
-let currentPageId = null;
-let plannerItemsScroll = null;
-let taskFilter;
+let faultMessage: string | null = null;
+let shortFaultMessage: string | null = null;
+let encryptionKey: CryptoKey;
+let rootContainer: Container;
+let allCategories: Category[];
+let currentTask: Task;
+let nextTaskId: number;
+let recentCompletions: Set<Completion> = new Set();
+let activeMonthCheckboxes: HTMLInputElement[];
+let lastTimerEventDate: PlannerDate | null = null;
+let currentPageId: string | null = null;
+let plannerItemsScroll: number | null = null;
+let taskFilter: string;
 
-const pluralize = (amount, noun) => (
+const pluralize = (amount: number, noun: string): string => (
     (amount === 1) ? `${amount} ${noun}` : `${amount} ${noun}s`
 );
 
-const convertNativeDateToDate = (nativeDate) => ({
+const convertNativeDateToDate = (nativeDate: NativeDate): PlannerDate => ({
     year: nativeDate.getFullYear(),
     month: nativeDate.getMonth() + 1,
     day: nativeDate.getDate(),
 });
 
-const convertDateToNativeDate = (date) => new Date(date.year, date.month - 1, date.day, 11);
+const convertDateToNativeDate = (date: PlannerDate): NativeDate => (
+    new Date(date.year, date.month - 1, date.day, 11)
+);
 
-const convertDateToTimestamp = (date) => {
+const convertDateToTimestamp = (date: PlannerDate): number => {
     const nativeDate = convertDateToNativeDate(date);
     return nativeDate.getTime() / 1000;
 };
 
-const convertTimestampToDate = (timestamp) => {
+const convertTimestampToDate = (timestamp: number): PlannerDate => {
     const nativeDate = new Date(timestamp * 1000);
     return convertNativeDateToDate(nativeDate);
 };
 
-const getCurrentDate = () => convertNativeDateToDate(new Date());
+const getCurrentDate = (): PlannerDate => convertNativeDateToDate(new Date());
 
-const convertDateToString = (date) => {
+const convertDateToString = (date: PlannerDate): string => {
     const terms = [
         `${date.year}`.padStart(4, "0"),
         `${date.month}`.padStart(2, "0"),
@@ -64,33 +117,35 @@ const convertDateToString = (date) => {
     return terms.join("-");
 };
 
-const convertStringToDate = (dateString) => {
+const convertStringToDate = (dateString: string): PlannerDate => {
     const values = dateString.split("-").map((term) => parseInt(term, 10));
     return { year: values[0], month: values[1], day: values[2] };
 };
 
 // Returns the number of days from date2 to date1.
-const subtractDates = (date1, date2) => {
+const subtractDates = (date1: PlannerDate, date2: PlannerDate): number => {
     const nativeDate1 = convertDateToNativeDate(date1);
     const nativeDate2 = convertDateToNativeDate(date2);
     // `timestampDelta` is measured in seconds.
-    const timestampDelta = (nativeDate1 - nativeDate2) / 1000;
+    const timestampDelta = (nativeDate1.getTime() - nativeDate2.getTime()) / 1000;
     return Math.round(timestampDelta / secondsPerDay);
 };
 
-const datesAreEqual = (date1, date2) => (
+const datesAreEqual = (date1: PlannerDate, date2: PlannerDate): boolean => (
     date1.year === date2.year && date1.month === date2.month && date1.day === date2.day
 );
 
-const addDaysToDate = (date, dayAmount) => {
+const addDaysToDate = (date: PlannerDate, dayAmount: number): PlannerDate => {
     const timestamp = convertDateToTimestamp(date);
     return convertTimestampToDate(timestamp + secondsPerDay * dayAmount);
 };
 
-const createButtons = (buttonDefs) => {
+const createButtons = (
+    buttonDefs: ButtonDef[],
+): { divTag: HTMLDivElement, buttonTags: HTMLButtonElement[] } => {
     const divTag = document.createElement("div");
-    divTag.style.flexShrink = 0;
-    const buttonTags = [];
+    divTag.style.flexShrink = "0";
+    const buttonTags: HTMLButtonElement[] = [];
     for (const buttonDef of buttonDefs) {
         const button = document.createElement("button");
         button.innerHTML = buttonDef.text;
@@ -101,9 +156,9 @@ const createButtons = (buttonDefs) => {
     return { divTag, buttonTags };
 };
 
-const updateSaveMessage = () => {
+const updateSaveMessage = (): void => {
     let color = "#000000";
-    let saveMessage;
+    let saveMessage: string;
     if (hasFault) {
         color = "#DD0000";
         saveMessage = "Communication error! " + shortFaultMessage;
@@ -119,7 +174,7 @@ const updateSaveMessage = () => {
     messageTag.style.color = color;
 }
 
-const checkRequestQueue = () => {
+const checkRequestQueue = (): void => {
     if (currentRequest === null && requestQueue.length > 0) {
         currentRequest = requestQueue.shift();
         currentRequest.func();
@@ -127,14 +182,17 @@ const checkRequestQueue = () => {
     updateSaveMessage();
 };
 
-const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) => {
+const dispatchRequest = <T>(
+    isSave: boolean,
+    requestFunc: () => Promise<T>,
+): Promise<T> => new Promise<T>((resolve, reject) => {
     if (hasFault) {
         alert(faultMessage);
         reject(new Error(faultMessage));
         return;
     }
-    const wrappedFunc = async () => {
-        let result;
+    const wrappedFunc = async (): Promise<void> => {
+        let result: T;
         try {
             result = await requestFunc();
         } catch (error) {
@@ -157,9 +215,12 @@ const dispatchRequest = (isSave, requestFunc) => new Promise((resolve, reject) =
     checkRequestQueue();
 });
 
-const getChunks = async (names, isSave = false) => {
-    return await dispatchRequest(isSave, async () => {
-        const body = { keyVersion, names };
+const getChunks = async (
+    names: string[],
+    isSave = false,
+): Promise<{ [name: string]: any }> => {
+    return await dispatchRequest<any>(isSave, async () => {
+        const body: any = { keyVersion, names };
         if (chunksVersion !== null) {
             body.chunksVersion = chunksVersion;
         }
@@ -174,15 +235,15 @@ const getChunks = async (names, isSave = false) => {
     });
 };
 
-const setChunks = async (chunks) => {
-    const encryptedChunks = {};
+const setChunks = async (chunks: { [name: string]: any }): Promise<void> => {
+    const encryptedChunks: { [name: string]: string | null } = {};
     for (const name in chunks) {
         const chunk = chunks[name];
         encryptedChunks[name] = (chunk === null)
             ? null
             : await encryptChunk(chunk, encryptionKey);
     }
-    await dispatchRequest(true, async () => {
+    await dispatchRequest<void>(true, async () => {
         const response = await makeRequest(
             "/setChunks",
             { chunksVersion, keyVersion, chunks: encryptedChunks },
@@ -191,34 +252,34 @@ const setChunks = async (chunks) => {
     });
 };
 
-const readTaskFilter = async () => {
-    return await dispatchRequest(false, async () => {
+const readTaskFilter = async (): Promise<string> => {
+    return await dispatchRequest<string>(false, async () => {
         return (await makeRequest("/getTaskFilter", {})).taskFilter;
     });
 };
 
-const writeTaskFilter = async () => {
+const writeTaskFilter = async (): Promise<void> => {
     const filterToWrite = taskFilter;
-    await dispatchRequest(true, async () => {
+    await dispatchRequest<void>(true, async () => {
         await makeRequest("/setTaskFilter", { taskFilter: filterToWrite });
     });
 };
 
-const savePlannerItems = () => {
+const savePlannerItems = (): void => {
     const data = rootContainer.toJson();
     setChunks({ plannerItems: data });
 };
 
-const recentCompletionsToJson = () => {
-    const output = [];
+const recentCompletionsToJson = (): CompletionJson[] => {
+    const output: CompletionJson[] = [];
     for (const completion of recentCompletions) {
         output.push(completion.toJson());
     }
     return output;
 }
 
-const loadOldCompletions = async (tasks, isSave = false) => {
-    const chunkKeys = [];
+const loadOldCompletions = async (tasks: Task[], isSave = false): Promise<void> => {
+    const chunkKeys: string[] = [];
     for (const task of tasks) {
         if (!task.loadedOldCompletions) {
             chunkKeys.push(task.getOldCompletionsKey());
@@ -243,10 +304,10 @@ const loadOldCompletions = async (tasks, isSave = false) => {
 };
 
 // Old completions must have been previously loaded for oldCompletionsTask.
-const saveCompletions = async (oldCompletionsTask = null) => {
+const saveCompletions = async (oldCompletionsTask: Task | null = null): Promise<void> => {
     const tasks = getAllTasks();
     const surplusCount = recentCompletions.size - tasks.length;
-    const oldCompletionsTasks = [];
+    const oldCompletionsTasks: Task[] = [];
     if (oldCompletionsTask !== null) {
         oldCompletionsTasks.push(oldCompletionsTask);
     }
@@ -259,7 +320,7 @@ const saveCompletions = async (oldCompletionsTask = null) => {
                 recentCompletions.add(lastCompletion);
             }
         }
-        const tasksToUpdate = new Set();
+        const tasksToUpdate = new Set<Task>();
         for (const completion of previousCompletions) {
             if (!completion.isRecent()) {
                 const { parentTask } = completion;
@@ -268,7 +329,7 @@ const saveCompletions = async (oldCompletionsTask = null) => {
                 }
             }
         }
-        await loadOldCompletions(tasksToUpdate, true);
+        await loadOldCompletions(Array.from(tasksToUpdate), true);
         for (const task of tasksToUpdate) {
             oldCompletionsTasks.push(task);
         }
@@ -284,8 +345,24 @@ const saveCompletions = async (oldCompletionsTask = null) => {
 };
 
 class Completion {
+    date: PlannerDate;
+    dateIsApproximate: boolean;
+    notes: string;
+    timestamp: number;
+    tag: HTMLDivElement | null;
+    notesAreVisible: boolean;
+    parentTask: Task | null;
+    rowTag: HTMLDivElement;
+    textTag: HTMLDivElement;
+    notesTag: HTMLDivElement;
+    buttonsTag: HTMLDivElement;
+    notesButton: HTMLButtonElement;
+    editTag: HTMLDivElement;
+    editDateTag: HTMLInputElement;
+    editIsApproxTag: HTMLInputElement;
+    editNotesTag: HTMLTextAreaElement;
     
-    constructor(date, dateIsApproximate, notes) {
+    constructor(date: PlannerDate, dateIsApproximate: boolean, notes: string) {
         this.date = date;
         this.dateIsApproximate = dateIsApproximate;
         this.notes = notes;
@@ -295,7 +372,7 @@ class Completion {
         this.parentTask = null;
     }
     
-    getDateString() {
+    getDateString(): string {
         let output = convertDateToString(this.date);
         if (this.dateIsApproximate) {
             output = "~" + output;
@@ -303,7 +380,7 @@ class Completion {
         return output;
     }
     
-    getTag() {
+    getTag(): HTMLDivElement {
         if (this.tag !== null) {
             return this.tag;
         }
@@ -402,16 +479,16 @@ class Completion {
         return this.tag;
     }
     
-    isRecent() {
+    isRecent(): boolean {
         return recentCompletions.has(this);
     }
     
-    updateNotesButton() {
+    updateNotesButton(): void {
         this.notesButton.style.display = (this.notes.length > 0) ? "" : "none";
         this.notesButton.innerHTML = this.notesAreVisible ? "Hide Notes" : "Show Notes";
     }
     
-    setNotesVisibility(notesAreVisible) {
+    setNotesVisibility(notesAreVisible: boolean): void {
         this.notesAreVisible = notesAreVisible;
         this.updateNotesButton();
         if (this.notesAreVisible) {
@@ -423,7 +500,7 @@ class Completion {
         }
     }
     
-    showEditTag() {
+    showEditTag(): void {
         this.rowTag.style.display = "none";
         this.setNotesVisibility(false);
         this.editTag.style.display = "";
@@ -432,12 +509,12 @@ class Completion {
         this.editNotesTag.value = this.notes;
     }
     
-    hideEditTag() {
+    hideEditTag(): void {
         this.rowTag.style.display = "flex";
         this.editTag.style.display = "none";
     }
     
-    finishEdit() {
+    finishEdit(): void {
         const dateString = this.editDateTag.value;
         if (dateString.length <= 0) {
             alert("Please enter a date for the completion.");
@@ -453,11 +530,11 @@ class Completion {
         this.parentTask.handleCompletionsChange(false, true);
     }
     
-    delete() {
+    delete(): void {
         this.parentTask.deleteCompletion(this);
     }
     
-    toJson() {
+    toJson(): CompletionJson {
         return {
             taskId: this.parentTask.id,
             date: { ...this.date },
@@ -468,17 +545,20 @@ class Completion {
 }
 
 class Container {
+    tag: HTMLDivElement;
+    parentCategory: Category | null;
+    plannerItems: PlannerItem[];
     
-    constructor(tag, parentPlannerItem = null) {
+    constructor(tag: HTMLDivElement, parentCategory: Category | null = null) {
         this.tag = tag;
-        this.parentPlannerItem = parentPlannerItem;
-        if (this.parentPlannerItem !== null) {
-            this.parentPlannerItem.container = this;
+        this.parentCategory = parentCategory;
+        if (this.parentCategory !== null) {
+            this.parentCategory.container = this;
         }
         this.plannerItems = [];
     }
     
-    addItem(plannerItem, index = null) {
+    addItem(plannerItem: PlannerItem, index: number | null = null): void {
         if (plannerItem.parentContainer !== null) {
             plannerItem.remove();
         }
@@ -491,31 +571,31 @@ class Container {
             this.plannerItems.splice(index, 0, plannerItem);
         }
         plannerItem.parentContainer = this;
-        if (this.parentPlannerItem === null) {
+        if (this.parentCategory === null) {
             updatePlannerItemsPlaceholder();
         } else {
-            this.parentPlannerItem.updateVisibility();
+            this.parentCategory.updateVisibility();
         }
     }
     
-    findItem(plannerItem) {
+    findItem(plannerItem: PlannerItem): number {
         return this.plannerItems.indexOf(plannerItem);
     }
     
-    removeItem(plannerItem) {
+    removeItem(plannerItem: PlannerItem): void {
         this.tag.removeChild(plannerItem.tag);
         const index = this.findItem(plannerItem);
         this.plannerItems.splice(index, 1);
         plannerItem.parentContainer = null;
-        if (this.parentPlannerItem === null) {
+        if (this.parentCategory === null) {
             updatePlannerItemsPlaceholder();
         } else {
-            this.parentPlannerItem.updateVisibility();
+            this.parentCategory.updateVisibility();
         }
     }
     
-    getItems(filter) {
-        const output = [];
+    getItems(filter: (plannerItem: PlannerItem) => boolean): PlannerItem[] {
+        const output: PlannerItem[] = [];
         for (const plannerItem of this.plannerItems) {
             if (filter(plannerItem)) {
                 output.push(plannerItem);
@@ -530,16 +610,21 @@ class Container {
         return output;
     }
     
-    toJson() {
+    toJson(): ContainerJson {
         return {
             plannerItems: this.plannerItems.map((plannerItem) => plannerItem.toJson()),
         };
     }
 }
 
-class PlannerItem {
-    // Concrete subclasses of PlannerItem must implement these methods:
-    // createTag, toJson, updateVisibility
+abstract class PlannerItem {
+    name: string;
+    tag: HTMLDivElement;
+    parentContainer: Container | null;
+    isVisible: boolean;
+    nameTag: HTMLDivElement;
+    buttonsTag: HTMLDivElement;
+    moveButtonsTag: HTMLDivElement;
     
     constructor(name) {
         this.name = name;
@@ -548,7 +633,13 @@ class PlannerItem {
         this.isVisible = true;
     }
     
-    createButtons(buttonDefs) {
+    abstract createTag(): HTMLDivElement;
+    
+    abstract toJson(): PlannerItemJson;
+    
+    abstract updateVisibility(shouldRecur?: boolean): void;
+    
+    createButtons(buttonDefs: ButtonDef[]): HTMLDivElement {
         this.buttonsTag = createButtons([
             ...buttonDefs,
             {
@@ -561,7 +652,7 @@ class PlannerItem {
         return this.buttonsTag;
     }
     
-    createMoveButtons() {
+    createMoveButtons(): HTMLDivElement {
         this.moveButtonsTag = createButtons([
             {
                 text: "Up",
@@ -598,34 +689,34 @@ class PlannerItem {
         return this.moveButtonsTag;
     }
     
-    getParentPlannerItem() {
-        return this.parentContainer?.parentPlannerItem ?? null;
+    getParentCategory(): Category | null {
+        return this.parentContainer?.parentCategory ?? null;
     }
     
-    setName(name) {
+    setName(name: string): void {
         this.name = name;
         this.nameTag.innerHTML = name;
     }
     
-    remove() {
+    remove(): void {
         this.parentContainer.removeItem(this);
     }
     
-    startMove() {
+    startMove(): void {
         this.buttonsTag.style.display = "none";
         this.moveButtonsTag.style.display = "";
     }
     
-    endMove() {
+    endMove(): void {
         this.buttonsTag.style.display = "";
         this.moveButtonsTag.style.display = "none";
     }
     
-    getIndex() {
+    getIndex(): number {
         return this.parentContainer.findItem(this);
     }
     
-    moveUp() {
+    moveUp(): void {
         const nextIndex = this.getIndex() - 1;
         if (nextIndex < 0) {
             return;
@@ -636,7 +727,7 @@ class PlannerItem {
         savePlannerItems();
     }
     
-    moveDown() {
+    moveDown(): void {
         const nextIndex = this.getIndex() + 1;
         const container = this.parentContainer;
         if (nextIndex >= container.plannerItems.length) {
@@ -647,7 +738,7 @@ class PlannerItem {
         savePlannerItems();
     }
     
-    enterCategory() {
+    enterCategory(): void {
         const nextIndex = this.getIndex() + 1;
         const { plannerItems } = this.parentContainer;
         if (nextIndex >= plannerItems.length) {
@@ -662,36 +753,51 @@ class PlannerItem {
         savePlannerItems();
     }
     
-    exitCategory() {
-        const parentPlannerItem = this.getParentPlannerItem();
-        if (parentPlannerItem === null) {
+    exitCategory(): void {
+        const parentCategory = this.getParentCategory();
+        if (parentCategory === null) {
             return;
         }
-        const container = parentPlannerItem.parentContainer;
-        const index = container.findItem(parentPlannerItem);
+        const container = parentCategory.parentContainer;
+        const index = container.findItem(parentCategory);
         this.remove();
         container.addItem(this, index);
         savePlannerItems();
     }
     
-    setVisibility(isVisible) {
+    setVisibility(isVisible: boolean): void {
         if (isVisible === this.isVisible) {
             return;
         }
         this.isVisible = isVisible;
         this.tag.style.display = this.isVisible ? "" : "none";
-        const parentPlannerItem = this.getParentPlannerItem();
-        if (parentPlannerItem === null) {
+        const parentCategory = this.getParentCategory();
+        if (parentCategory === null) {
             updatePlannerItemsPlaceholder();
         } else {
-            parentPlannerItem.updateVisibility();
+            parentCategory.updateVisibility();
         }
     }
 }
 
 class Task extends PlannerItem {
+    id: number;
+    frequency: number | null;
+    dueDate: PlannerDate | null;
+    dueDateIsManual: boolean | null;
+    upcomingPeriod: number | null;
+    gracePeriod: number | null;
+    activeMonths: boolean[] | null;
+    notes: string;
+    completions: Completion[];
+    loadedOldCompletions: boolean;
+    isDeleted: boolean;
+    status: TaskStatusName | null;
+    statusCircle: HTMLDivElement;
+    dueDateTag: HTMLDivElement;
+    completionDateTag: HTMLDivElement;
     
-    constructor(data) {
+    constructor(data: TaskJson) {
         super(data.name);
         this.id = data.id;
         this.frequency = data.frequency;
@@ -711,7 +817,7 @@ class Task extends PlannerItem {
         this.updateVisibility();
     }
     
-    createTag() {
+    createTag(): HTMLDivElement {
         const output = document.createElement("div");
         output.className = "plannerItem";
         
@@ -759,10 +865,10 @@ class Task extends PlannerItem {
         return output;
     }
     
-    updateCompletionDateTag() {
+    updateCompletionDateTag(): void {
         const completion = this.getLastCompletion();
-        let text;
-        let displayStyle;
+        let text: string;
+        let displayStyle: string;
         if (completion === null) {
             text = "";
             displayStyle = "none";
@@ -774,9 +880,9 @@ class Task extends PlannerItem {
         this.completionDateTag.style.display = displayStyle;
     }
     
-    updateDueDateTag() {
-        let text;
-        let displayStyle;
+    updateDueDateTag(): void {
+        let text: string;
+        let displayStyle: string;
         if (this.dueDate === null) {
             text = "";
             displayStyle = "none";
@@ -788,7 +894,7 @@ class Task extends PlannerItem {
         this.dueDateTag.style.display = displayStyle;
     }
     
-    determineStatus() {
+    determineStatus(): TaskStatusName {
         const currentDate = getCurrentDate();
         const dueDateOffset = (this.dueDate === null)
             ? null
@@ -813,7 +919,7 @@ class Task extends PlannerItem {
         return "completed";
     }
     
-    updateStatus() {
+    updateStatus(): void {
         const status = this.determineStatus();
         if (status !== this.status) {
             this.status = status;
@@ -822,7 +928,7 @@ class Task extends PlannerItem {
         }
     }
     
-    displayCompletions() {
+    displayCompletions(): void {
         const completionsTag = document.getElementById("pastCompletions");
         completionsTag.innerHTML = "";
         if (this.completions.length <= 0) {
@@ -839,9 +945,9 @@ class Task extends PlannerItem {
         }
     }
     
-    displayDueDate() {
-        let dueDateText;
-        let displayStyle;
+    displayDueDate(): void {
+        let dueDateText: string;
+        let displayStyle: string;
         if (this.dueDate === null) {
             dueDateText = "";
             displayStyle = "none";
@@ -861,7 +967,7 @@ class Task extends PlannerItem {
     }
     
     // Should not be called if this.frequency is null.
-    calculateDueDate() {
+    calculateDueDate(): PlannerDate {
         return calculateDueDate(
             this.frequency,
             this.activeMonths,
@@ -869,7 +975,7 @@ class Task extends PlannerItem {
         );
     }
     
-    checkDueDate(addedNewCompletion) {
+    checkDueDate(addedNewCompletion: boolean): void {
         if (this.dueDate === null) {
             return;
         }
@@ -900,7 +1006,7 @@ class Task extends PlannerItem {
         }
     }
     
-    completionsChangeHelper() {
+    completionsChangeHelper(): void {
         this.completions.sort(
             (completion1, completion2) => completion1.timestamp - completion2.timestamp,
         );
@@ -911,7 +1017,10 @@ class Task extends PlannerItem {
         this.updateStatus();
     }
     
-    handleCompletionsChange(addedNewCompletion, shouldSaveOldCompletions) {
+    handleCompletionsChange(
+        addedNewCompletion: boolean,
+        shouldSaveOldCompletions: boolean,
+    ): void {
         this.completionsChangeHelper();
         const lastCompletion = this.getLastCompletion();
         if (lastCompletion !== null) {
@@ -921,7 +1030,7 @@ class Task extends PlannerItem {
         saveCompletions(shouldSaveOldCompletions ? this : null);
     }
     
-    handleDueDateChange() {
+    handleDueDateChange(): void {
         this.updateDueDateTag();
         if (this === currentTask) {
             this.displayDueDate();
@@ -930,12 +1039,12 @@ class Task extends PlannerItem {
         this.updateVisibility();
     }
     
-    addCompletionHelper(completion) {
+    addCompletionHelper(completion: Completion): void {
         this.completions.push(completion);
         completion.parentTask = this;
     }
     
-    addCompletion(completion) {
+    addCompletion(completion: Completion): void {
         const lastDate = this.getLastCompletionDate();
         const completionIsNew = (lastDate === null
             || subtractDates(completion.date, lastDate) > 0);
@@ -944,22 +1053,22 @@ class Task extends PlannerItem {
         this.handleCompletionsChange(completionIsNew, false);
     }
     
-    addCompletionsFromServer(completions) {
+    addCompletionsFromServer(completions: Completion[]): void {
         for (const completion of completions) {
             this.addCompletionHelper(completion);
         }
         this.completionsChangeHelper();
     }
     
-    getLastCompletion() {
+    getLastCompletion(): Completion | null {
         return (this.completions.length > 0) ? this.completions.at(-1) : null;
     }
     
-    getLastCompletionDate() {
+    getLastCompletionDate(): PlannerDate | null {
         return this.getLastCompletion()?.date ?? null;
     }
     
-    markAsComplete() {
+    markAsComplete(): void {
         const lastDate = this.getLastCompletionDate();
         const currentDate = getCurrentDate();
         if (lastDate === null || !datesAreEqual(currentDate, lastDate)) {
@@ -970,7 +1079,7 @@ class Task extends PlannerItem {
         }
     }
     
-    deleteCompletion(completion) {
+    deleteCompletion(completion: Completion): void {
         const index = this.completions.indexOf(completion);
         this.completions.splice(index, 1);
         completion.parentTask = null;
@@ -978,11 +1087,11 @@ class Task extends PlannerItem {
         this.handleCompletionsChange(false, true);
     }
     
-    getOldCompletionsKey() {
+    getOldCompletionsKey(): string {
         return "oldCompletions." + this.id;
     }
     
-    delete() {
+    delete(): void {
         for (const completion of this.completions) {
             recentCompletions.delete(completion);
         }
@@ -994,7 +1103,7 @@ class Task extends PlannerItem {
         this.remove();
     }
     
-    evaluateFilterTerm(term) {
+    evaluateFilterTerm(term: string): boolean {
         if (term === "all") {
             return true;
         }
@@ -1025,11 +1134,14 @@ class Task extends PlannerItem {
         }
     }
     
-    evaluateFilter(terms, startIndex) {
+    evaluateFilter(
+        terms: string[],
+        startIndex: number,
+    ): { hasMatch: boolean, index: number } {
         let index = startIndex;
         const firstTerm = terms[index];
         index += 1;
-        let hasMatch;
+        let hasMatch: boolean;
         if (firstTerm === "OR") {
             const result1 = this.evaluateFilter(terms, index);
             ({ index } = result1);
@@ -1042,14 +1154,14 @@ class Task extends PlannerItem {
         return { hasMatch, index };
     }
     
-    updateVisibility(shouldRecur = false) {
+    updateVisibility(shouldRecur = false): void {
         // Nothing like a good DSL to spice things up.
         const filterTerms = taskFilter.split(" ");
         const isVisible = this.evaluateFilter(filterTerms, 0).hasMatch;
         this.setVisibility(isVisible);
     }
     
-    toJson() {
+    toJson(): TaskJson {
         return {
             type: "task",
             name: this.name,
@@ -1064,8 +1176,8 @@ class Task extends PlannerItem {
         };
     }
     
-    oldCompletionsToJson() {
-        const output = [];
+    oldCompletionsToJson(): CompletionJson[] {
+        const output: CompletionJson[] = [];
         for (const completion of this.completions) {
             if (!completion.isRecent()) {
                 output.push(completion.toJson());
@@ -1076,14 +1188,18 @@ class Task extends PlannerItem {
 }
 
 class Category extends PlannerItem {
+    container: Container;
+    containerTag: HTMLDivElement;
+    renameTag: HTMLInputElement;
+    renameButtonsTag: HTMLDivElement;
     
-    constructor(name, containerData = null) {
+    constructor(name, containerData: ContainerJson | null = null) {
         super(name);
         jsonToContainer(this.containerTag, this, containerData);
         this.updateVisibility();
     }
     
-    createTag() {
+    createTag(): HTMLDivElement {
         const output = document.createElement("div");
         output.className = "plannerItem";
         
@@ -1098,7 +1214,7 @@ class Category extends PlannerItem {
         this.renameTag.style.width = "150px";
         this.renameTag.style.marginRight = "15px";
         this.renameTag.style.display = "none";
-        this.renameTag.onkeydown = () => {
+        this.renameTag.onkeydown = (event) => {
             if (event.keyCode === 13) {
                 this.finishRename();
             }
@@ -1158,11 +1274,11 @@ class Category extends PlannerItem {
         return output;
     }
     
-    addItem(plannerItem, index = null) {
+    addItem(plannerItem: PlannerItem, index: number | null = null): void {
         this.container.addItem(plannerItem, index);
     }
     
-    addNewCategory() {
+    addNewCategory(): void {
         const category = new Category(newCategoryName);
         this.addItem(category);
         if (!category.isVisible) {
@@ -1171,7 +1287,7 @@ class Category extends PlannerItem {
         savePlannerItems();
     }
     
-    startRename() {
+    startRename(): void {
         this.nameTag.style.display = "none";
         this.buttonsTag.style.display = "none";
         this.renameTag.style.display = "";
@@ -1180,20 +1296,20 @@ class Category extends PlannerItem {
         this.renameTag.focus();
     }
     
-    finishRename() {
+    finishRename(): void {
         this.setName(this.renameTag.value);
         this.hideRenameTags();
         savePlannerItems();
     }
     
-    hideRenameTags() {
+    hideRenameTags(): void {
         this.nameTag.style.display = "";
         this.buttonsTag.style.display = "";
         this.renameTag.style.display = "none";
         this.renameButtonsTag.style.display = "none";
     }
     
-    deleteAndDumpChildren() {
+    deleteAndDumpChildren(): void {
         const { parentContainer } = this;
         const index = parentContainer.findItem(this);
         const children = this.container.plannerItems.slice();
@@ -1208,7 +1324,7 @@ class Category extends PlannerItem {
         savePlannerItems();
     }
     
-    updateVisibility(shouldRecur = false) {
+    updateVisibility(shouldRecur = false): void {
         if (shouldRecur) {
             for (const plannerItem of this.container.plannerItems) {
                 plannerItem.updateVisibility(shouldRecur);
@@ -1224,7 +1340,7 @@ class Category extends PlannerItem {
         }
     }
     
-    toJson() {
+    toJson(): CategoryJson {
         return {
             type: "category",
             name: this.name,
@@ -1233,16 +1349,20 @@ class Category extends PlannerItem {
     }
 }
 
-const getAllTasks = () => rootContainer.getItems(
+const getAllTasks = (): Task[] => rootContainer.getItems(
     (plannerItem) => (plannerItem instanceof Task)
-);
+) as Task[];
 
-const jsonToCompletion = (data) => (
+const jsonToCompletion = (data: CompletionJson): Completion => (
     new Completion(data.date, data.dateIsApproximate, data.notes)
 );
 
-const jsonToContainer = (tag, parentPlannerItem = null, data = null) => {
-    const container = new Container(tag, parentPlannerItem);
+const jsonToContainer = (
+    tag: HTMLDivElement,
+    parentCategory: Category | null= null,
+    data: ContainerJson | null = null,
+) => {
+    const container = new Container(tag, parentCategory);
     if (data !== null) {
         for (const itemJson of data.plannerItems) {
             const plannerItem = jsonToPlannerItem(itemJson);
@@ -1252,17 +1372,18 @@ const jsonToContainer = (tag, parentPlannerItem = null, data = null) => {
     return container;
 }
 
-const jsonToPlannerItem = (data) => {
+const jsonToPlannerItem = (data: PlannerItemJson): PlannerItem => {
     if (data.type === "task") {
-        return new Task(data);
+        return new Task(data as TaskJson);
     } else if (data.type === "category") {
-        return new Category(data.name, data.container);
+        const categoryData = data as CategoryJson
+        return new Category(categoryData.name, categoryData.container);
     } else {
         throw new Error(`Invalid planner item type "${data.type}".`);
     }
 };
 
-const showPage = (idToShow) => {
+const showPage = (idToShow: string): void => {
     if (currentPageId === "viewPlannerItems") {
         plannerItemsScroll = window.scrollY;
     }
@@ -1279,16 +1400,16 @@ const showPage = (idToShow) => {
     currentPageId = idToShow;
 }
 
-const showLoadingScreen = (message) => {
+const showLoadingScreen = (message: string): void => {
     showPage("loadingScreen");
     document.getElementById("loadMessage").innerHTML = message;
 };
 
-const updateCategoryOptions = (categoryToSelect) => {
+const updateCategoryOptions = (categoryToSelect: Category): void => {
     allCategories = rootContainer.getItems(
         (plannerItem) => (plannerItem instanceof Category),
-    );
-    const selectTag = document.getElementById("editParentCategory");
+    ) as Category[];
+    const selectTag = document.getElementById("editParentCategory") as HTMLSelectElement;
     selectTag.innerHTML = "";
     const rootOptionTag = document.createElement("option");
     rootOptionTag.value = "-1";
@@ -1306,43 +1427,43 @@ const updateCategoryOptions = (categoryToSelect) => {
     selectTag.value = `${parentIndex}`;
 };
 
-const setAllActiveMonths = (value) => {
+const setAllActiveMonths = (value: boolean): void => {
     for (const checkbox of activeMonthCheckboxes) {
         checkbox.checked = value;
     }
 };
 
-const startTaskCreation = (parentCategory = null) => {
+const startTaskCreation = (parentCategory: Category | null = null): void => {
     currentTask = null;
     showPage("editTask");
-    const nameTag = document.getElementById("editTaskName");
+    const nameTag = document.getElementById("editTaskName") as HTMLInputElement;
     nameTag.value = "";
     nameTag.focus();
-    document.getElementById("editFrequency").value = "";
-    document.getElementById("editDueDate").value = "";
-    document.getElementById("dueDateIsManual").checked = false;
-    document.getElementById("scheduleType").value = "noDueDate";
+    (document.getElementById("editFrequency") as HTMLInputElement).value = "";
+    (document.getElementById("editDueDate") as HTMLInputElement).value = "";
+    (document.getElementById("dueDateIsManual") as HTMLInputElement).checked = false;
+    (document.getElementById("scheduleType") as HTMLSelectElement).value = "noDueDate";
     handleScheduleTypeChange();
-    document.getElementById("hasUpcomingPeriod").checked = false;
-    document.getElementById("editUpcomingPeriod").value = "";
+    (document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked = false;
+    (document.getElementById("editUpcomingPeriod") as HTMLInputElement).value = "";
     handleUpcomingPeriodChange();
-    document.getElementById("hasGracePeriod").checked = false;
-    document.getElementById("editGracePeriod").value = "";
+    (document.getElementById("hasGracePeriod") as HTMLInputElement).checked = false;
+    (document.getElementById("editGracePeriod") as HTMLInputElement).value = "";
     handleGracePeriodChange();
     setAllActiveMonths(true);
     updateCategoryOptions(parentCategory);
-    document.getElementById("editTaskNotes").value = "";
+    (document.getElementById("editTaskNotes") as HTMLTextAreaElement).value = "";
 };
 
-const startTaskEdit = () => {
+const startTaskEdit = (): void => {
     showPage("editTask");
-    document.getElementById("editTaskName").value = currentTask.name;
-    document.getElementById("editFrequency").value = currentTask.frequency ?? "";
-    document.getElementById("editDueDate").value = (currentTask.dueDate === null)
+    (document.getElementById("editTaskName") as HTMLInputElement).value = currentTask.name;
+    (document.getElementById("editFrequency") as HTMLInputElement).value = `${currentTask.frequency ?? ""}`;
+    (document.getElementById("editDueDate") as HTMLInputElement).value = (currentTask.dueDate === null)
         ? ""
         : convertDateToString(currentTask.dueDate);
-    document.getElementById("dueDateIsManual").checked = currentTask.dueDateIsManual ?? false;
-    let scheduleType;
+    (document.getElementById("dueDateIsManual") as HTMLInputElement).checked = currentTask.dueDateIsManual ?? false;
+    let scheduleType: string;
     if (currentTask.dueDate === null) {
         scheduleType = "noDueDate";
     } else if (currentTask.frequency === null) {
@@ -1350,16 +1471,16 @@ const startTaskEdit = () => {
     } else {
         scheduleType = "repeatingDueDate";
     }
-    document.getElementById("scheduleType").value = scheduleType;
+    (document.getElementById("scheduleType") as HTMLSelectElement).value = scheduleType;
     handleScheduleTypeChange();
     const { upcomingPeriod, gracePeriod } = currentTask;
     const hasUpcomingPeriod = (upcomingPeriod !== null);
-    document.getElementById("hasUpcomingPeriod").checked = hasUpcomingPeriod;
-    document.getElementById("editUpcomingPeriod").value = hasUpcomingPeriod ? upcomingPeriod : "";
+    (document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked = hasUpcomingPeriod;
+    (document.getElementById("editUpcomingPeriod") as HTMLInputElement).value = hasUpcomingPeriod ? `${upcomingPeriod}` : "";
     handleUpcomingPeriodChange();
     const hasGracePeriod = (gracePeriod !== null);
-    document.getElementById("hasGracePeriod").checked = hasGracePeriod;
-    document.getElementById("editGracePeriod").value = hasGracePeriod ? gracePeriod : "";
+    (document.getElementById("hasGracePeriod") as HTMLInputElement).checked = hasGracePeriod;
+    (document.getElementById("editGracePeriod") as HTMLInputElement).value = hasGracePeriod ? `${gracePeriod}` : "";
     handleGracePeriodChange();
     const { activeMonths } = currentTask;
     if (activeMonths === null) {
@@ -1370,13 +1491,13 @@ const startTaskEdit = () => {
             activeMonthCheckboxes[index].checked = monthIsActive;
         }
     }
-    const parentPlannerItem = currentTask.getParentPlannerItem();
-    updateCategoryOptions(parentPlannerItem);
-    document.getElementById("editTaskNotes").value = currentTask.notes;
+    const parentCategory = currentTask.getParentCategory();
+    updateCategoryOptions(parentCategory);
+    (document.getElementById("editTaskNotes") as HTMLTextAreaElement).value = currentTask.notes;
 };
 
-const handleScheduleTypeChange = () => {
-    const scheduleType = document.getElementById("scheduleType").value;
+const handleScheduleTypeChange = (): void => {
+    const scheduleType = (document.getElementById("scheduleType") as HTMLSelectElement).value;
     const hasDueDate = (scheduleType !== "noDueDate");
     const isRepeating = (scheduleType === "repeatingDueDate");
     document.getElementById("editFrequencyRow").style.display = isRepeating ? "" : "none";
@@ -1386,11 +1507,11 @@ const handleScheduleTypeChange = () => {
     updateEditDueDate();
 };
 
-const dateIsInActiveMonth = (date, activeMonths) => (
+const dateIsInActiveMonth = (date: PlannerDate, activeMonths: boolean[] | null): boolean => (
     (activeMonths === null) ? true : activeMonths[date.month - 1]
 );
 
-const advanceDateMonth = (date) => {
+const advanceDateMonth = (date: PlannerDate): PlannerDate => {
     let { year } = date;
     let month = date.month + 1;
     if (month > monthAmount) {
@@ -1400,7 +1521,11 @@ const advanceDateMonth = (date) => {
     return { year, month, day: 1 };
 };
 
-const calculateDueDate = (frequency, activeMonths, lastCompletionDate) => {
+const calculateDueDate = (
+    frequency: number | null,
+    activeMonths: boolean[] | null,
+    lastCompletionDate: PlannerDate | null,
+): PlannerDate => {
     if (lastCompletionDate === null) {
         return getCurrentDate();
     }
@@ -1420,18 +1545,18 @@ const calculateDueDate = (frequency, activeMonths, lastCompletionDate) => {
     return date;
 };
 
-const updateEditDueDate = () => {
-    const scheduleType = document.getElementById("scheduleType").value;
+const updateEditDueDate = (): void => {
+    const scheduleType = (document.getElementById("scheduleType") as HTMLSelectElement).value;
     if (scheduleType === "noDueDate") {
         return;
     }
-    const isManual = (scheduleType === "singleDueDate") || document.getElementById("dueDateIsManual").checked;
-    const dueDateTag = document.getElementById("editDueDate");
+    const isManual = (scheduleType === "singleDueDate") || (document.getElementById("dueDateIsManual") as HTMLInputElement).checked;
+    const dueDateTag = document.getElementById("editDueDate") as HTMLInputElement;
     dueDateTag.disabled = !isManual;
     if (isManual) {
         return;
     }
-    const frequency = parseInt(document.getElementById("editFrequency").value, 10);
+    const frequency = parseInt((document.getElementById("editFrequency") as HTMLInputElement).value, 10);
     if (Number.isNaN(frequency)) {
         return;
     }
@@ -1441,10 +1566,10 @@ const updateEditDueDate = () => {
     dueDateTag.value = convertDateToString(dueDate);
 };
 
-const handleUpcomingPeriodChange = () => {
+const handleUpcomingPeriodChange = (): void => {
     let labelText = "Upcoming period";
-    let displayStyle;
-    if (document.getElementById("hasUpcomingPeriod").checked) {
+    let displayStyle: string;
+    if ((document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked) {
         labelText += ":";
         displayStyle = "";
     } else {
@@ -1454,10 +1579,10 @@ const handleUpcomingPeriodChange = () => {
     document.getElementById("editUpcomingContainer").style.display = displayStyle;
 };
 
-const handleGracePeriodChange = () => {
+const handleGracePeriodChange = (): void => {
     let labelText = "Grace period";
-    let displayStyle;
-    if (document.getElementById("hasGracePeriod").checked) {
+    let displayStyle: string;
+    if ((document.getElementById("hasGracePeriod") as HTMLInputElement).checked) {
         labelText += ":";
         displayStyle = "";
     } else {
@@ -1467,14 +1592,14 @@ const handleGracePeriodChange = () => {
     document.getElementById("editGraceContainer").style.display = displayStyle;
 };
 
-const getEditParentContainer = () => {
-    const selectTag = document.getElementById("editParentCategory");
+const getEditParentContainer = (): Container => {
+    const selectTag = document.getElementById("editParentCategory") as HTMLSelectElement;
     const parentIndex = parseInt(selectTag.value, 10);
     return (parentIndex < 0) ? rootContainer : allCategories[parentIndex].container;
 };
 
-const getEditActiveMonths = () => {
-    const activeMonths = [];
+const getEditActiveMonths = (): boolean[] | null => {
+    const activeMonths: boolean[] = [];
     let hasInactiveMonth = false;
     for (const checkbox of activeMonthCheckboxes) {
         activeMonths.push(checkbox.checked);
@@ -1485,8 +1610,8 @@ const getEditActiveMonths = () => {
     return hasInactiveMonth ? activeMonths : null;
 };
 
-const saveTask = () => {
-    const nameTag = document.getElementById("editTaskName");
+const saveTask = (): void => {
+    const nameTag = document.getElementById("editTaskName") as HTMLInputElement;
     const name = nameTag.value;
     if (name.length <= 0) {
         alert("Please enter a task name.");
@@ -1494,36 +1619,36 @@ const saveTask = () => {
         return;
     }
     updateEditDueDate();
-    const scheduleType = document.getElementById("scheduleType").value;
-    let frequency = null;
-    let dueDate;
-    let dueDateIsManual;
+    const scheduleType = (document.getElementById("scheduleType") as HTMLSelectElement).value;
+    let frequency: number | null = null;
+    let dueDate: PlannerDate | null;
+    let dueDateIsManual: boolean | null;
     if (scheduleType === "noDueDate") {
         dueDate = null;
         dueDateIsManual = null;
     } else {
         if (scheduleType === "repeatingDueDate") {
-            const frequencyTag = document.getElementById("editFrequency");
+            const frequencyTag = document.getElementById("editFrequency") as HTMLInputElement;
             frequency = parseInt(frequencyTag.value, 10);
             if (Number.isNaN(frequency)) {
                 alert("Please enter a due date frequency.");
                 frequencyTag.focus();
                 return;
             }
-            dueDateIsManual = document.getElementById("dueDateIsManual").checked;
+            dueDateIsManual = (document.getElementById("dueDateIsManual") as HTMLInputElement).checked;
         } else {
             dueDateIsManual = true;
         }
-        const dateString = document.getElementById("editDueDate").value;
+        const dateString = (document.getElementById("editDueDate") as HTMLInputElement).value;
         if (dateString.length <= 0) {
             alert("Please enter a due date.");
             return;
         }
         dueDate = convertStringToDate(dateString);
     }
-    let upcomingPeriod;
-    if (document.getElementById("hasUpcomingPeriod").checked) {
-        const periodTag = document.getElementById("editUpcomingPeriod");
+    let upcomingPeriod: number | null;
+    if ((document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked) {
+        const periodTag = document.getElementById("editUpcomingPeriod") as HTMLInputElement;
         upcomingPeriod = parseInt(periodTag.value, 10);
         if (Number.isNaN(upcomingPeriod)) {
             alert("Please enter an upcoming period duration.");
@@ -1533,9 +1658,9 @@ const saveTask = () => {
     } else {
         upcomingPeriod = null;
     }
-    let gracePeriod;
-    if (document.getElementById("hasGracePeriod").checked) {
-        const periodTag = document.getElementById("editGracePeriod");
+    let gracePeriod: number | null;
+    if ((document.getElementById("hasGracePeriod") as HTMLInputElement).checked) {
+        const periodTag = (document.getElementById("editGracePeriod") as HTMLInputElement);
         gracePeriod = parseInt(periodTag.value, 10);
         if (Number.isNaN(gracePeriod)) {
             alert("Please enter a grace period duration.");
@@ -1546,12 +1671,13 @@ const saveTask = () => {
         gracePeriod = null;
     }
     const activeMonths = getEditActiveMonths();
-    const notes = document.getElementById("editTaskNotes").value;
+    const notes = (document.getElementById("editTaskNotes") as HTMLTextAreaElement).value;
     const parentContainer = getEditParentContainer();
     if (currentTask === null) {
         const id = nextTaskId;
         nextTaskId += 1;
         const task = new Task({
+            type: "task",
             name,
             id,
             frequency,
@@ -1588,12 +1714,12 @@ const saveTask = () => {
     savePlannerItems();
 };
 
-const viewPlannerItems = () => {
+const viewPlannerItems = (): void => {
     currentTask = null;
     showPage("viewPlannerItems");
 };
 
-const displayNotes = (destTag, notes) => {
+const displayNotes = (destTag: HTMLParagraphElement, notes: string) => {
     const lines = ["Notes:", ...notes.split("\n")];
     destTag.innerHTML = "";
     for (let index = 0; index < lines.length; index++) {
@@ -1605,14 +1731,14 @@ const displayNotes = (destTag, notes) => {
     }
 };
 
-const clearNewCompletionForm = () => {
+const clearNewCompletionForm = (): void => {
     const currentDate = getCurrentDate();
-    document.getElementById("newCompletionDate").value = convertDateToString(currentDate);
-    document.getElementById("dateIsApproximate").checked = false;
-    document.getElementById("newCompletionNotes").value = "";
+    (document.getElementById("newCompletionDate") as HTMLInputElement).value = convertDateToString(currentDate);
+    (document.getElementById("dateIsApproximate") as HTMLInputElement).checked = false;
+    (document.getElementById("newCompletionNotes") as HTMLTextAreaElement).value = "";
 };
 
-const viewTask = async (task = null) => {
+const viewTask = async (task: Task | null = null): Promise<void> => {
     if (task !== null) {
         currentTask = task;
     }
@@ -1624,8 +1750,8 @@ const viewTask = async (task = null) => {
     document.getElementById("viewTaskName").innerHTML = currentTask.name;
     currentTask.displayDueDate();
     const { upcomingPeriod, gracePeriod, activeMonths } = currentTask;
-    let upcomingText;
-    let upcomingStyle;
+    let upcomingText: string;
+    let upcomingStyle: string;
     if (upcomingPeriod === null) {
         upcomingText = "";
         upcomingStyle = "none";
@@ -1636,8 +1762,8 @@ const viewTask = async (task = null) => {
     const upcomingTag = document.getElementById("viewUpcomingPeriod");
     upcomingTag.innerHTML = upcomingText;
     upcomingTag.style.display = upcomingStyle;
-    let graceText;
-    let graceStyle;
+    let graceText: string;
+    let graceStyle: string;
     if (gracePeriod === null) {
         graceText = "";
         graceStyle = "none";
@@ -1648,17 +1774,17 @@ const viewTask = async (task = null) => {
     const graceTag = document.getElementById("viewGracePeriod");
     graceTag.innerHTML = graceText;
     graceTag.style.display = graceStyle;
-    let monthsText;
-    let monthsStyle;
+    let monthsText: string;
+    let monthsStyle: string;
     if (activeMonths === null) {
         monthsText = "";
         monthsStyle = "none"
     } else {
-        const activeAbbreviations = [];
+        const activeAbbreviations: string[] = [];
         for (let index = 0; index < activeMonths.length; index++) {
             const monthIsActive = activeMonths[index];
             if (monthIsActive) {
-                abbreviation = monthAbbreviations[index];
+                const abbreviation = monthAbbreviations[index];
                 activeAbbreviations.push(abbreviation);
             }
         }
@@ -1668,13 +1794,11 @@ const viewTask = async (task = null) => {
     const monthsTag = document.getElementById("viewActiveMonths");
     monthsTag.innerHTML = monthsText;
     monthsTag.style.display = monthsStyle;
-    const parentPlannerItem = currentTask.getParentPlannerItem();
-    const parentName = (parentPlannerItem === null)
-        ? rootCategoryName
-        : parentPlannerItem.name;
+    const parentCategory = currentTask.getParentCategory();
+    const parentName = (parentCategory === null) ? rootCategoryName : parentCategory.name;
     document.getElementById("viewParentCategory").innerHTML = parentName;
-    const notesTag = document.getElementById("viewTaskNotes");
-    let notesStyle;
+    const notesTag = document.getElementById("viewTaskNotes") as HTMLParagraphElement;
+    let notesStyle: string;
     if (currentTask.notes.length > 0) {
         displayNotes(notesTag, currentTask.notes);
         notesStyle = "";
@@ -1687,7 +1811,7 @@ const viewTask = async (task = null) => {
     currentTask.displayCompletions();
 };
 
-const cancelTaskEdit = () => {
+const cancelTaskEdit = (): void => {
     if (currentTask === null) {
         viewPlannerItems();
     } else {
@@ -1695,7 +1819,7 @@ const cancelTaskEdit = () => {
     }
 };
 
-const deleteTask = () => {
+const deleteTask = (): void => {
     const shouldDelete = confirm("Are you sure you want to delete this task?");
     if (shouldDelete) {
         currentTask.delete();
@@ -1704,21 +1828,21 @@ const deleteTask = () => {
     }
 };
 
-const saveNewCompletion = () => {
-    const dateString = document.getElementById("newCompletionDate").value;
+const saveNewCompletion = (): void => {
+    const dateString = (document.getElementById("newCompletionDate") as HTMLInputElement).value;
     if (dateString.length <= 0) {
         alert("Please enter a date for the new completion.");
         return;
     }
     const date = convertStringToDate(dateString);
-    const dateIsApproximate = document.getElementById("dateIsApproximate").checked;
-    const notes = document.getElementById("newCompletionNotes").value;
+    const dateIsApproximate = (document.getElementById("dateIsApproximate") as HTMLInputElement).checked;
+    const notes = (document.getElementById("newCompletionNotes") as HTMLTextAreaElement).value;
     const completion = new Completion(date, dateIsApproximate, notes);
     currentTask.addCompletion(completion);
     clearNewCompletionForm();
 };
 
-const addRootCategory = () => {
+const addRootCategory = (): void => {
     const category = new Category(newCategoryName);
     rootContainer.addItem(category);
     if (!category.isVisible) {
@@ -1727,19 +1851,19 @@ const addRootCategory = () => {
     savePlannerItems();
 };
 
-const updatePlannerItemVisibilities = () => {
+const updatePlannerItemVisibilities = (): void => {
     for (const plannerItem of rootContainer.plannerItems) {
         plannerItem.updateVisibility(true);
     }
 };
 
-const updatePlannerItemsPlaceholder = () => {
+const updatePlannerItemsPlaceholder = (): void => {
     if (typeof rootContainer === "undefined") {
         return;
     }
     const placeholderTag = document.getElementById("plannerItemsPlaceholder");
     const { plannerItems } = rootContainer;
-    let message;
+    let message: string | null;
     if (plannerItems.length <= 0) {
         message = "You don't have any tasks yet. Click the \"Add Task\" button to get started.";
     } else if (plannerItems.some((plannerItem) => plannerItem.isVisible)) {
@@ -1751,18 +1875,18 @@ const updatePlannerItemsPlaceholder = () => {
     placeholderTag.innerHTML = message;
 };
 
-const clearTaskFilter = () => {
-    document.getElementById("taskFilter").value = "all";
+const clearTaskFilter = (): void => {
+    (document.getElementById("taskFilter") as HTMLSelectElement).value = "all";
     handleTaskFilterChange();
 };
 
-const handleTaskFilterChange = () => {
-    taskFilter = document.getElementById("taskFilter").value;
+const handleTaskFilterChange = (): void => {
+    taskFilter = (document.getElementById("taskFilter") as HTMLSelectElement).value;
     writeTaskFilter();
     updatePlannerItemVisibilities();
 };
 
-const downloadJsonFile = async () => {
+const downloadJsonFile = async (): Promise<void> => {
     const buttonTag = document.getElementById("downloadButton");
     const messageTag = document.getElementById("downloadMessage");
     buttonTag.style.display = "none";
@@ -1770,7 +1894,7 @@ const downloadJsonFile = async () => {
     await loadOldCompletions(getAllTasks());
     // Retrieve all tasks again in case they changed during `loadOldCompletions`.
     const tasks = getAllTasks();
-    const completionsData = [];
+    const completionsData: CompletionJson[] = [];
     for (const task of tasks) {
         for (const completion of task.completions) {
             completionsData.push(completion.toJson());
@@ -1795,7 +1919,7 @@ const downloadJsonFile = async () => {
     messageTag.style.display = "none";
 };
 
-const timerEvent = () => {
+const timerEvent = (): void => {
     const currentDate = getCurrentDate();
     if (lastTimerEventDate === null || !datesAreEqual(lastTimerEventDate, currentDate)) {
         const tasks = getAllTasks();
@@ -1811,11 +1935,11 @@ const timerEvent = () => {
     }
 };
 
-const initializePage = async () => {
+export const initializePage = async (): Promise<void> => {
     const keyData = localStorage.getItem("keyData");
     if (keyData === null) {
         alert("You are not currently logged in. Please log in to view your tasks.");
-        window.location = "/login";
+        window.location = "/login" as (string & Location);
     }
     showLoadingScreen("Loading tasks...");
     ({ keyHash, keyVersion } = JSON.parse(keyData));
@@ -1855,9 +1979,9 @@ const initializePage = async () => {
     createStatusLegend(document.getElementById("statusLegend"));
     applyCircleColors();
     taskFilter = await readTaskFilter();
-    document.getElementById("taskFilter").value = taskFilter;
+    (document.getElementById("taskFilter") as HTMLSelectElement).value = taskFilter;
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
-    const rootContainerTag = document.getElementById("rootContainer");
+    const rootContainerTag = document.getElementById("rootContainer") as HTMLDivElement;
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);
     updatePlannerItemsPlaceholder();
     const tasks = getAllTasks();
