@@ -1,4 +1,7 @@
 
+// TODO: Remove this dummy export statement.
+export {};
+
 let isCreatingAccount = false;
 
 const createAccount = async () => {

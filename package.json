@@ -3,6 +3,10 @@
     "version": "1.0.0",
     "type": "module",
     "dependencies": {
+        "@types/bcrypt": "^5.0.2",
+        "@types/express": "^5.0.1",
+        "@types/express-session": "^1.18.1",
+        "@types/node": ">=22.0.0",
         "bcrypt": "^5.1.1",
         "bcryptjs": "^2.4.3",
         "body-parser": "^1.20.2",

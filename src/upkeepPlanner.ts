@@ -2,10 +2,12 @@
 import * as pathUtils from "path";
 import * as fs from "fs";
 import * as http from "http";
+import { Server } from "http";
 import * as https from "https";
 import { fileURLToPath } from "url";
 import * as dotenv from "dotenv";
 import express from "express";
+import { Request, Response } from "express";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import expressSession from "express-session";
@@ -16,6 +18,43 @@ import bcrypt from "bcrypt";
 import { Level } from "level";
 
 dotenv.config();
+
+declare module "express-session" {
+    interface SessionData {
+        username?: string;
+    }
+}
+
+interface ExpressError extends Error {
+    status: number;
+}
+
+interface Account {
+    username: string;
+    authSalt: string;
+    authHashHash: string;
+    keySalt: string;
+    keyVersion: number;
+    emailAddress: string;
+    chunksVersion: number;
+    taskFilter: string;
+}
+
+interface AccountJob {
+    func: () => void;
+    symbol: Symbol;
+}
+
+interface JobQueue {
+    jobs: AccountJob[];
+    currentSymbol: Symbol | null;
+}
+
+interface PageOptions {
+    scripts?: string[];
+    stylesheets?: string[];
+    contentWidth?: number;
+}
 
 const projectPath = pathUtils.dirname(fileURLToPath(import.meta.url));
 const databasePath = pathUtils.join(projectPath, "levelDb");
@@ -28,12 +67,12 @@ const isDevMode = (process.env.NODE_ENV === "development");
 
 const levelDb = new Level(databasePath, { valueEncoding: "json" });
 // Map from username to job queue.
-const accountQueueMap = new Map();
+const accountQueueMap = new Map<string, JobQueue>();
 let isShuttingDown = false;
 
-const getAccountKey = (username) => "account_" + username;
+const getAccountKey = (username: string): string => "account_" + username;
 
-const levelGetSafe = async (key) => {
+const levelGetSafe = async (key: string): Promise<any> => {
     try {
         return await levelDb.get(key);
     } catch (error) {
@@ -44,11 +83,13 @@ const levelGetSafe = async (key) => {
     }
 };
 
-const levelKeyExists = async (key) => (await levelGetSafe(key) !== null);
+const levelKeyExists = async (key: string): Promise<boolean> => (
+    await levelGetSafe(key) !== null
+);
 
-const getUsername = (req) => {
+const getUsername = (req: Request): string | null => {
     if (isDevMode) {
-        const { username } = req.query;
+        const username = req.query.username.toString();
         if (typeof username !== "undefined") {
             req.session.username = username;
         }
@@ -56,14 +97,19 @@ const getUsername = (req) => {
     return req.session.username ?? null;
 };
 
-const hasLoggedIn = (req) => (getUsername(req) !== null);
+const hasLoggedIn = (req: Request): boolean => (getUsername(req) !== null);
 
-const putAccount = async (account) => {
+const putAccount = async (account: Account): Promise<void> => {
     const accountKey = getAccountKey(account.username);
-    await levelDb.put(accountKey, account);
+    await levelDb.put(accountKey, account as any);
 };
 
-const renderPage = (res, path, options = {}, params = {}) => {
+const renderPage = (
+    res: Response,
+    path: string,
+    options: PageOptions = {},
+    params: { [key: string]: any } = {},
+): void => {
     const templatePath = pathUtils.join(viewsPath, path);
     const template = fs.readFileSync(templatePath, "utf8");
     const content = Mustache.render(template, params);
@@ -75,7 +121,7 @@ const renderPage = (res, path, options = {}, params = {}) => {
     });
 };
 
-const checkAuthentication = (req, res) => {
+const checkAuthentication = (req: Request, res: Response): boolean => {
     if (hasLoggedIn(req)) {
         return true;
     }
@@ -83,7 +129,11 @@ const checkAuthentication = (req, res) => {
     return false;
 };
 
-const checkAuthHash = async (authHash, account, res) => {
+const checkAuthHash = async (
+    authHash: string,
+    account: Account,
+    res: Response,
+): Promise<boolean> => {
     const hashMatches = await bcrypt.compare(authHash, account.authHashHash);
     if (!hashMatches) {
         res.json({
@@ -95,7 +145,7 @@ const checkAuthHash = async (authHash, account, res) => {
     return true;
 };
 
-const getAccountQueue = (username) => {
+const getAccountQueue = (username: string): JobQueue => {
     let queue = accountQueueMap.get(username);
     if (typeof queue === "undefined") {
         queue = { jobs: [], currentSymbol: null };
@@ -104,7 +154,11 @@ const getAccountQueue = (username) => {
     return queue;
 }
 
-const runAccountFunc = (req, res, func) => new Promise((resolve, reject) => {
+const runAccountFunc = (
+    req: Request,
+    res: Response,
+    func: (account: Account) => Promise<void>,
+): Promise<void> => new Promise<void>((resolve, reject) => {
     const username = getUsername(req);
     if (username === null) {
         res.json({ success: false, message: "You are not currently logged in." });
@@ -121,7 +175,7 @@ const runAccountFunc = (req, res, func) => new Promise((resolve, reject) => {
     const wrappedFunc = async () => {
         const timeout = setTimeout(finishJob, 30 * 1000);
         const accountKey = getAccountKey(username);
-        const account = await levelDb.get(accountKey);
+        const account = await levelDb.get(accountKey) as unknown as Account;
         try {
             await func(account);
             resolve();
@@ -135,7 +189,7 @@ const runAccountFunc = (req, res, func) => new Promise((resolve, reject) => {
     startNextAccountJob(username);
 });
 
-const startNextAccountJob = (username) => {
+const startNextAccountJob = (username: string): void => {
     const queue = getAccountQueue(username);
     if (queue.jobs.length <= 0) {
         accountQueueMap.delete(username);
@@ -148,14 +202,17 @@ const startNextAccountJob = (username) => {
     }
 };
 
-const getChunkKey = (chunkName, username) => {
+const getChunkKey = (chunkName: string, username: string): string => {
     if (chunkName.indexOf("_") >= 0) {
         throw new Error("Invalid chunk name.");
     }
     return `${chunkName}_${username}`;
 };
 
-const setChunks = async (chunks, username) => {
+const setChunks = async (
+    chunks: { [name: string]: string },
+    username: string,
+): Promise<void> => {
     for (const name in chunks) {
         const chunk = chunks[name];
         const chunkKey = getChunkKey(name, username);
@@ -169,7 +226,10 @@ const setChunks = async (chunks, username) => {
 
 const router = express.Router();
 
-const createAccountEndpoint = (path, handler) => {
+const createAccountEndpoint = (
+    path: string,
+    handler: (req: Request, res: Response, account: Account) => void | Promise<void>,
+): void => {
     router.post(path, async (req, res) => {
         if (isShuttingDown) {
             res.json({
@@ -415,23 +475,23 @@ expressApp.use("/", router);
 
 // Catch 404 status and forward to error handler.
 expressApp.use((req, res, next) => {
-    const error = new Error("Not Found");
+    const error = new Error("Not Found") as ExpressError;
     error.status = 404;
     next(error);
 });
 
 // Error handler.
 expressApp.use((error, req, res, next) => {
-    const statusCode = error.status ?? 500;
+    const statusCode = (error as ExpressError).status ?? 500;
     res.status(statusCode);
-    const params = { statusCode, message: error.message };
+    const params: { [key: string]: any } = { statusCode, message: error.message };
     if (isDevMode) {
         params.stack = error.stack;
     }
     renderPage(res, "error.html", {}, params);
 });
 
-const shutdownServer = async () => {
+const shutdownServer = async (): Promise<void> => {
     if (isShuttingDown) {
         return;
     }
@@ -441,7 +501,7 @@ const shutdownServer = async () => {
         console.log("Failed to shut down gracefully!");
         process.exit(1);
     }, 10 * 1000);
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
         const interval = setInterval(() => {
             for (const queue of accountQueueMap.values()) {
                 if (queue.currentSymbol !== null || queue.jobs.length > 0) {
@@ -459,7 +519,7 @@ const shutdownServer = async () => {
 process.on("SIGTERM", shutdownServer);
 process.on("SIGINT", shutdownServer);
 
-let server;
+let server: Server;
 if (isDevMode) {
     server = http.createServer(expressApp);
 } else {

@@ -4,5 +4,6 @@ levelDb
 ssl.key
 ssl.crt
 ssl.ca-bundle
+dist
 
 

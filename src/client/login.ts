@@ -1,4 +1,7 @@
 
+// TODO: Remove this dummy export statement.
+export {};
+
 let isLoggingIn = false;
 
 const logIn = async () => {

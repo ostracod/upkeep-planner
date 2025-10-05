@@ -1,4 +1,7 @@
 
+// TODO: Remove this dummy export statement.
+export {};
+
 const newCategoryName = "New Category";
 const rootCategoryName = "Top Level";
 const pageIds = ["loadingScreen", "viewPlannerItems", "editTask", "viewTask"];

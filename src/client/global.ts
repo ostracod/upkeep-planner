@@ -1,4 +1,7 @@
 
+// TODO: Remove this dummy export statement.
+export {};
+
 class ServerError extends Error {
     
     constructor(message, shortMessage) {

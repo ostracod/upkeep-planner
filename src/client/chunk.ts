@@ -1,4 +1,7 @@
 
+// TODO: Remove this dummy export statement.
+export {};
+
 const ivLength = 16;
 
 const convertTextToBuffer = (text) => {

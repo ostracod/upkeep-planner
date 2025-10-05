@@ -1,4 +1,7 @@
 
+// TODO: Remove this dummy export statement.
+export {};
+
 let isChangingPassword = false;
 let oldEncryptionKey;
 let oldKeyVersion;
