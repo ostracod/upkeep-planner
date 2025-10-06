@@ -61,6 +61,22 @@ const monthAmount = 12;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const completionFlushThreshold = 50;
 
+let tag_taskFilter: HTMLSelectElement;
+let tag_editTaskName: HTMLInputElement;
+let tag_scheduleType: HTMLSelectElement;
+let tag_editFrequency: HTMLInputElement;
+let tag_editDueDate: HTMLInputElement;
+let tag_dueDateIsManual: HTMLInputElement;
+let tag_hasUpcomingPeriod: HTMLInputElement;
+let tag_editUpcomingPeriod: HTMLInputElement;
+let tag_hasGracePeriod: HTMLInputElement;
+let tag_editGracePeriod: HTMLInputElement;
+let tag_editParentCategory: HTMLSelectElement;
+let tag_editTaskNotes: HTMLTextAreaElement;
+let tag_newCompletionDate: HTMLInputElement;
+let tag_dateIsApproximate: HTMLInputElement;
+let tag_newCompletionNotes: HTMLTextAreaElement;
+
 const requestQueue: Request[] = [];
 let currentRequest: Request | null = null;
 let saveTimestamp: number | null = null;
@@ -1409,22 +1425,21 @@ const updateCategoryOptions = (categoryToSelect: Category): void => {
     allCategories = rootContainer.getItems(
         (plannerItem) => (plannerItem instanceof Category),
     ) as Category[];
-    const selectTag = document.getElementById("editParentCategory") as HTMLSelectElement;
-    selectTag.innerHTML = "";
+    tag_editParentCategory.innerHTML = "";
     const rootOptionTag = document.createElement("option");
     rootOptionTag.value = "-1";
     rootOptionTag.innerHTML = rootCategoryName;
-    selectTag.appendChild(rootOptionTag);
+    tag_editParentCategory.appendChild(rootOptionTag);
     for (let index = 0; index < allCategories.length; index++) {
         const category = allCategories[index];
         const optionTag = document.createElement("option");
         optionTag.value = `${index}`;
         optionTag.innerHTML = category.name;
-        selectTag.appendChild(optionTag);
+        tag_editParentCategory.appendChild(optionTag);
     }
     const parentIndex = allCategories.indexOf(categoryToSelect);
-    // Note that if categoryToSelect is null, then selectTag.value will be -1.
-    selectTag.value = `${parentIndex}`;
+    // Note that if categoryToSelect is null, then tag_editParentCategory.value will be -1.
+    tag_editParentCategory.value = `${parentIndex}`;
 };
 
 const setAllActiveMonths = (value: boolean): void => {
@@ -1436,33 +1451,32 @@ const setAllActiveMonths = (value: boolean): void => {
 const startTaskCreation = (parentCategory: Category | null = null): void => {
     currentTask = null;
     showPage("editTask");
-    const nameTag = document.getElementById("editTaskName") as HTMLInputElement;
-    nameTag.value = "";
-    nameTag.focus();
-    (document.getElementById("editFrequency") as HTMLInputElement).value = "";
-    (document.getElementById("editDueDate") as HTMLInputElement).value = "";
-    (document.getElementById("dueDateIsManual") as HTMLInputElement).checked = false;
-    (document.getElementById("scheduleType") as HTMLSelectElement).value = "noDueDate";
+    tag_editTaskName.value = "";
+    tag_editTaskName.focus();
+    tag_editFrequency.value = "";
+    tag_editDueDate.value = "";
+    tag_dueDateIsManual.checked = false;
+    tag_scheduleType.value = "noDueDate";
     handleScheduleTypeChange();
-    (document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked = false;
-    (document.getElementById("editUpcomingPeriod") as HTMLInputElement).value = "";
+    tag_hasUpcomingPeriod.checked = false;
+    tag_editUpcomingPeriod.value = "";
     handleUpcomingPeriodChange();
-    (document.getElementById("hasGracePeriod") as HTMLInputElement).checked = false;
-    (document.getElementById("editGracePeriod") as HTMLInputElement).value = "";
+    tag_hasGracePeriod.checked = false;
+    tag_editGracePeriod.value = "";
     handleGracePeriodChange();
     setAllActiveMonths(true);
     updateCategoryOptions(parentCategory);
-    (document.getElementById("editTaskNotes") as HTMLTextAreaElement).value = "";
+    tag_editTaskNotes.value = "";
 };
 
 const startTaskEdit = (): void => {
     showPage("editTask");
-    (document.getElementById("editTaskName") as HTMLInputElement).value = currentTask.name;
-    (document.getElementById("editFrequency") as HTMLInputElement).value = `${currentTask.frequency ?? ""}`;
-    (document.getElementById("editDueDate") as HTMLInputElement).value = (currentTask.dueDate === null)
+    tag_editTaskName.value = currentTask.name;
+    tag_editFrequency.value = `${currentTask.frequency ?? ""}`;
+    tag_editDueDate.value = (currentTask.dueDate === null)
         ? ""
         : convertDateToString(currentTask.dueDate);
-    (document.getElementById("dueDateIsManual") as HTMLInputElement).checked = currentTask.dueDateIsManual ?? false;
+    tag_dueDateIsManual.checked = currentTask.dueDateIsManual ?? false;
     let scheduleType: string;
     if (currentTask.dueDate === null) {
         scheduleType = "noDueDate";
@@ -1471,16 +1485,16 @@ const startTaskEdit = (): void => {
     } else {
         scheduleType = "repeatingDueDate";
     }
-    (document.getElementById("scheduleType") as HTMLSelectElement).value = scheduleType;
+    tag_scheduleType.value = scheduleType;
     handleScheduleTypeChange();
     const { upcomingPeriod, gracePeriod } = currentTask;
     const hasUpcomingPeriod = (upcomingPeriod !== null);
-    (document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked = hasUpcomingPeriod;
-    (document.getElementById("editUpcomingPeriod") as HTMLInputElement).value = hasUpcomingPeriod ? `${upcomingPeriod}` : "";
+    tag_hasUpcomingPeriod.checked = hasUpcomingPeriod;
+    tag_editUpcomingPeriod.value = hasUpcomingPeriod ? `${upcomingPeriod}` : "";
     handleUpcomingPeriodChange();
     const hasGracePeriod = (gracePeriod !== null);
-    (document.getElementById("hasGracePeriod") as HTMLInputElement).checked = hasGracePeriod;
-    (document.getElementById("editGracePeriod") as HTMLInputElement).value = hasGracePeriod ? `${gracePeriod}` : "";
+    tag_hasGracePeriod.checked = hasGracePeriod;
+    tag_editGracePeriod.value = hasGracePeriod ? `${gracePeriod}` : "";
     handleGracePeriodChange();
     const { activeMonths } = currentTask;
     if (activeMonths === null) {
@@ -1493,11 +1507,11 @@ const startTaskEdit = (): void => {
     }
     const parentCategory = currentTask.getParentCategory();
     updateCategoryOptions(parentCategory);
-    (document.getElementById("editTaskNotes") as HTMLTextAreaElement).value = currentTask.notes;
+    tag_editTaskNotes.value = currentTask.notes;
 };
 
 const handleScheduleTypeChange = (): void => {
-    const scheduleType = (document.getElementById("scheduleType") as HTMLSelectElement).value;
+    const scheduleType = tag_scheduleType.value;
     const hasDueDate = (scheduleType !== "noDueDate");
     const isRepeating = (scheduleType === "repeatingDueDate");
     document.getElementById("editFrequencyRow").style.display = isRepeating ? "" : "none";
@@ -1546,30 +1560,29 @@ const calculateDueDate = (
 };
 
 const updateEditDueDate = (): void => {
-    const scheduleType = (document.getElementById("scheduleType") as HTMLSelectElement).value;
+    const scheduleType = tag_scheduleType.value;
     if (scheduleType === "noDueDate") {
         return;
     }
-    const isManual = (scheduleType === "singleDueDate") || (document.getElementById("dueDateIsManual") as HTMLInputElement).checked;
-    const dueDateTag = document.getElementById("editDueDate") as HTMLInputElement;
-    dueDateTag.disabled = !isManual;
+    const isManual = (scheduleType === "singleDueDate") || tag_dueDateIsManual.checked;
+    tag_editDueDate.disabled = !isManual;
     if (isManual) {
         return;
     }
-    const frequency = parseInt((document.getElementById("editFrequency") as HTMLInputElement).value, 10);
+    const frequency = parseInt(tag_editFrequency.value, 10);
     if (Number.isNaN(frequency)) {
         return;
     }
     const activeMonths = getEditActiveMonths();
     const completionDate = currentTask?.getLastCompletionDate() ?? null;
     const dueDate = calculateDueDate(frequency, activeMonths, completionDate);
-    dueDateTag.value = convertDateToString(dueDate);
+    tag_editDueDate.value = convertDateToString(dueDate);
 };
 
 const handleUpcomingPeriodChange = (): void => {
     let labelText = "Upcoming period";
     let displayStyle: string;
-    if ((document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked) {
+    if (tag_hasUpcomingPeriod.checked) {
         labelText += ":";
         displayStyle = "";
     } else {
@@ -1582,7 +1595,7 @@ const handleUpcomingPeriodChange = (): void => {
 const handleGracePeriodChange = (): void => {
     let labelText = "Grace period";
     let displayStyle: string;
-    if ((document.getElementById("hasGracePeriod") as HTMLInputElement).checked) {
+    if (tag_hasGracePeriod.checked) {
         labelText += ":";
         displayStyle = "";
     } else {
@@ -1593,8 +1606,7 @@ const handleGracePeriodChange = (): void => {
 };
 
 const getEditParentContainer = (): Container => {
-    const selectTag = document.getElementById("editParentCategory") as HTMLSelectElement;
-    const parentIndex = parseInt(selectTag.value, 10);
+    const parentIndex = parseInt(tag_editParentCategory.value, 10);
     return (parentIndex < 0) ? rootContainer : allCategories[parentIndex].container;
 };
 
@@ -1611,15 +1623,14 @@ const getEditActiveMonths = (): boolean[] | null => {
 };
 
 const saveTask = (): void => {
-    const nameTag = document.getElementById("editTaskName") as HTMLInputElement;
-    const name = nameTag.value;
+    const name = tag_editTaskName.value;
     if (name.length <= 0) {
         alert("Please enter a task name.");
-        nameTag.focus();
+        tag_editTaskName.focus();
         return;
     }
     updateEditDueDate();
-    const scheduleType = (document.getElementById("scheduleType") as HTMLSelectElement).value;
+    const scheduleType = tag_scheduleType.value;
     let frequency: number | null = null;
     let dueDate: PlannerDate | null;
     let dueDateIsManual: boolean | null;
@@ -1628,18 +1639,17 @@ const saveTask = (): void => {
         dueDateIsManual = null;
     } else {
         if (scheduleType === "repeatingDueDate") {
-            const frequencyTag = document.getElementById("editFrequency") as HTMLInputElement;
-            frequency = parseInt(frequencyTag.value, 10);
+            frequency = parseInt(tag_editFrequency.value, 10);
             if (Number.isNaN(frequency)) {
                 alert("Please enter a due date frequency.");
-                frequencyTag.focus();
+                tag_editFrequency.focus();
                 return;
             }
-            dueDateIsManual = (document.getElementById("dueDateIsManual") as HTMLInputElement).checked;
+            dueDateIsManual = tag_dueDateIsManual.checked;
         } else {
             dueDateIsManual = true;
         }
-        const dateString = (document.getElementById("editDueDate") as HTMLInputElement).value;
+        const dateString = tag_editDueDate.value;
         if (dateString.length <= 0) {
             alert("Please enter a due date.");
             return;
@@ -1647,31 +1657,29 @@ const saveTask = (): void => {
         dueDate = convertStringToDate(dateString);
     }
     let upcomingPeriod: number | null;
-    if ((document.getElementById("hasUpcomingPeriod") as HTMLInputElement).checked) {
-        const periodTag = document.getElementById("editUpcomingPeriod") as HTMLInputElement;
-        upcomingPeriod = parseInt(periodTag.value, 10);
+    if (tag_hasUpcomingPeriod.checked) {
+        upcomingPeriod = parseInt(tag_editUpcomingPeriod.value, 10);
         if (Number.isNaN(upcomingPeriod)) {
             alert("Please enter an upcoming period duration.");
-            periodTag.focus();
+            tag_editUpcomingPeriod.focus();
             return;
         }
     } else {
         upcomingPeriod = null;
     }
     let gracePeriod: number | null;
-    if ((document.getElementById("hasGracePeriod") as HTMLInputElement).checked) {
-        const periodTag = (document.getElementById("editGracePeriod") as HTMLInputElement);
-        gracePeriod = parseInt(periodTag.value, 10);
+    if (tag_hasGracePeriod.checked) {
+        gracePeriod = parseInt(tag_editGracePeriod.value, 10);
         if (Number.isNaN(gracePeriod)) {
             alert("Please enter a grace period duration.");
-            periodTag.focus();
+            tag_editGracePeriod.focus();
             return;
         }
     } else {
         gracePeriod = null;
     }
     const activeMonths = getEditActiveMonths();
-    const notes = (document.getElementById("editTaskNotes") as HTMLTextAreaElement).value;
+    const notes = tag_editTaskNotes.value;
     const parentContainer = getEditParentContainer();
     if (currentTask === null) {
         const id = nextTaskId;
@@ -1733,9 +1741,9 @@ const displayNotes = (destTag: HTMLParagraphElement, notes: string) => {
 
 const clearNewCompletionForm = (): void => {
     const currentDate = getCurrentDate();
-    (document.getElementById("newCompletionDate") as HTMLInputElement).value = convertDateToString(currentDate);
-    (document.getElementById("dateIsApproximate") as HTMLInputElement).checked = false;
-    (document.getElementById("newCompletionNotes") as HTMLTextAreaElement).value = "";
+    tag_newCompletionDate.value = convertDateToString(currentDate);
+    tag_dateIsApproximate.checked = false;
+    tag_newCompletionNotes.value = "";
 };
 
 const viewTask = async (task: Task | null = null): Promise<void> => {
@@ -1829,14 +1837,14 @@ const deleteTask = (): void => {
 };
 
 const saveNewCompletion = (): void => {
-    const dateString = (document.getElementById("newCompletionDate") as HTMLInputElement).value;
+    const dateString = tag_newCompletionDate.value;
     if (dateString.length <= 0) {
         alert("Please enter a date for the new completion.");
         return;
     }
     const date = convertStringToDate(dateString);
-    const dateIsApproximate = (document.getElementById("dateIsApproximate") as HTMLInputElement).checked;
-    const notes = (document.getElementById("newCompletionNotes") as HTMLTextAreaElement).value;
+    const dateIsApproximate = tag_dateIsApproximate.checked;
+    const notes = tag_newCompletionNotes.value;
     const completion = new Completion(date, dateIsApproximate, notes);
     currentTask.addCompletion(completion);
     clearNewCompletionForm();
@@ -1876,12 +1884,12 @@ const updatePlannerItemsPlaceholder = (): void => {
 };
 
 const clearTaskFilter = (): void => {
-    (document.getElementById("taskFilter") as HTMLSelectElement).value = "all";
+    tag_taskFilter.value = "all";
     handleTaskFilterChange();
 };
 
 const handleTaskFilterChange = (): void => {
-    taskFilter = (document.getElementById("taskFilter") as HTMLSelectElement).value;
+    taskFilter = tag_taskFilter.value;
     writeTaskFilter();
     updatePlannerItemVisibilities();
 };
@@ -1935,7 +1943,26 @@ const timerEvent = (): void => {
     }
 };
 
+const initializeTagVars = () => {
+    tag_taskFilter = document.getElementById("taskFilter") as any;
+    tag_editTaskName = document.getElementById("editTaskName") as any;
+    tag_scheduleType = document.getElementById("scheduleType") as any;
+    tag_editFrequency = document.getElementById("editFrequency") as any;
+    tag_editDueDate = document.getElementById("editDueDate") as any;
+    tag_dueDateIsManual = document.getElementById("dueDateIsManual") as any;
+    tag_hasUpcomingPeriod = document.getElementById("hasUpcomingPeriod") as any;
+    tag_editUpcomingPeriod = document.getElementById("editUpcomingPeriod") as any;
+    tag_hasGracePeriod = document.getElementById("hasGracePeriod") as any;
+    tag_editGracePeriod = document.getElementById("editGracePeriod") as any;
+    tag_editParentCategory = document.getElementById("editParentCategory") as any;
+    tag_editTaskNotes = document.getElementById("editTaskNotes") as any;
+    tag_newCompletionDate = document.getElementById("newCompletionDate") as any;
+    tag_dateIsApproximate = document.getElementById("dateIsApproximate") as any;
+    tag_newCompletionNotes = document.getElementById("newCompletionNotes") as any;
+};
+
 export const initializePage = async (): Promise<void> => {
+    initializeTagVars();
     const keyData = localStorage.getItem("keyData");
     if (keyData === null) {
         alert("You are not currently logged in. Please log in to view your tasks.");
@@ -1979,7 +2006,7 @@ export const initializePage = async (): Promise<void> => {
     createStatusLegend(document.getElementById("statusLegend"));
     applyCircleColors();
     taskFilter = await readTaskFilter();
-    (document.getElementById("taskFilter") as HTMLSelectElement).value = taskFilter;
+    tag_taskFilter.value = taskFilter;
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const rootContainerTag = document.getElementById("rootContainer") as HTMLDivElement;
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);
