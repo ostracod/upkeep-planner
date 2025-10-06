@@ -56,10 +56,12 @@ interface PageOptions {
     contentWidth?: number;
 }
 
-const projectPath = pathUtils.dirname(fileURLToPath(import.meta.url));
+const distPath = pathUtils.dirname(fileURLToPath(import.meta.url));
+const projectPath = pathUtils.dirname(distPath);
 const databasePath = pathUtils.join(projectPath, "levelDb");
 const publicPath = pathUtils.join(projectPath, "public");
 const viewsPath = pathUtils.join(projectPath, "views");
+const clientJsPath = pathUtils.join(distPath, "client");
 const privateKeyPath = pathUtils.join(projectPath, "ssl.key");
 const certificatePath = pathUtils.join(projectPath, "ssl.crt");
 const caBundlePath = pathUtils.join(projectPath, "ssl.ca-bundle");
@@ -89,7 +91,7 @@ const levelKeyExists = async (key: string): Promise<boolean> => (
 
 const getUsername = (req: Request): string | null => {
     if (isDevMode) {
-        const username = req.query.username.toString();
+        const username = req.query.username as string | undefined;
         if (typeof username !== "undefined") {
             req.session.username = username;
         }
@@ -260,7 +262,7 @@ const createAccountEndpoint = (
     });
 };
 
-router.get("/bcrypt.min.js", (req, res) => {
+router.get("/javascript/bcrypt.min.js", (req, res) => {
     const path = pathUtils.join(
         projectPath, "node_modules", "bcryptjs", "dist", "bcrypt.min.js",
     );
@@ -279,7 +281,7 @@ router.get("/login", (req, res) => {
     renderPage(
         res,
         "login.html",
-        { scripts: ["/bcrypt.min.js", "/javascript/login.js"] },
+        { scripts: ["/javascript/bcrypt.min.js"] },
         { hasLoggedIn: hasLoggedIn(req) },
     );
 });
@@ -288,7 +290,7 @@ router.get("/createAccount", (req, res) => {
     renderPage(
         res,
         "createAccount.html",
-        { scripts: ["/bcrypt.min.js", "/javascript/createAccount.js"] },
+        { scripts: ["/javascript/bcrypt.min.js"] },
     );
 });
 
@@ -360,10 +362,7 @@ router.get("/tasks", (req, res) => {
     renderPage(
         res,
         "tasks.html",
-        {
-            scripts: ["/javascript/chunk.js", "/javascript/tasks.js"],
-            stylesheets: ["/stylesheets/tasks.css"],
-        },
+        { stylesheets: ["/stylesheets/tasks.css"] },
     );
 });
 
@@ -374,13 +373,7 @@ router.get("/changePassword", (req, res) => {
     renderPage(
         res,
         "changePassword.html",
-        {
-            scripts: [
-                "/bcrypt.min.js",
-                "/javascript/chunk.js",
-                "/javascript/changePassword.js",
-            ],
-        },
+        { scripts: ["/javascript/bcrypt.min.js"] },
     );
 });
 
@@ -472,6 +465,7 @@ expressApp.use(express.static(publicPath));
 expressApp.set("views", viewsPath);
 expressApp.engine("html", mustacheExpress());
 expressApp.use("/", router);
+expressApp.use("/javascript", express.static(clientJsPath));
 
 // Catch 404 status and forward to error handler.
 expressApp.use((req, res, next) => {
