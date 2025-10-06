@@ -1,6 +1,38 @@
 
 export type TaskStatusName = "neverCompleted" | "completed" | "upcoming" | "grace" | "overdue" | "inactive";
 
+export interface PlannerDate {
+    year: number;
+    month: number;
+    day: number;
+}
+
+export interface ContainerJson {
+    plannerItems: PlannerItemJson[];
+}
+
+export interface PlannerItemJson {
+    type: string;
+    name: string;
+}
+
+export interface TaskJson extends PlannerItemJson {
+    type: "task";
+    id: number;
+    frequency: number | null;
+    dueDate: PlannerDate | null;
+    dueDateIsManual: boolean | null;
+    upcomingPeriod: number | null;
+    gracePeriod: number | null;
+    activeMonths: boolean[] | null;
+    notes: string;
+}
+
+export interface CategoryJson extends PlannerItemJson {
+    type: "category";
+    container: ContainerJson;
+}
+
 class ServerError extends Error {
     shortMessage: string;
     
@@ -27,7 +59,8 @@ export const makeRequest = async (path: string, data: any): Promise<any> => {
 };
 
 const taskStatuses: TaskStatus[] = [];
-export const statusColors: { [name: TaskStatus]: string } = {};
+// Each key of statusColors is a TaskStatus.
+export const statusColors: { [name: string]: string } = {};
 
 class TaskStatus {
     name: TaskStatusName;

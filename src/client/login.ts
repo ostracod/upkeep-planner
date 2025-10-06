@@ -1,12 +1,12 @@
 
-// TODO: Remove this dummy export statement.
-export {};
+import { makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
 
+let bcryptHash: (password: string, salt: string) => Promise<string>;
 let isLoggingIn = false;
 
-const logIn = async () => {
-    const usernameTag = document.getElementById("username");
-    const passwordTag = document.getElementById("password");
+const logIn = async (): Promise<void> => {
+    const usernameTag = document.getElementById("username") as HTMLInputElement;
+    const passwordTag = document.getElementById("password") as HTMLInputElement;
     const username = usernameTag.value;
     const password = passwordTag.value;
     if (username.length <= 0) {
@@ -20,14 +20,14 @@ const logIn = async () => {
         return;
     }
     const { authSalt } = await makeRequest("/getAuthSalt", { username });
-    const authHash = await dcodeIO.bcrypt.hash(password, authSalt);
+    const authHash = await bcryptHash(password, authSalt);
     const { keySalt, keyVersion } = await makeRequest("/loginAction", { username, authHash });
-    const keyHash = await dcodeIO.bcrypt.hash(password, keySalt);
+    const keyHash = await bcryptHash(password, keySalt);
     localStorage.setItem("keyData", JSON.stringify({ keyHash, keyVersion }));
-    window.location = "/tasks";
+    window.location = "/tasks" as (string & Location);
 };
 
-const formSubmitEvent = async () => {
+const formSubmitEvent = async (): Promise<void> => {
     if (isLoggingIn) {
         return;
     }
@@ -43,7 +43,8 @@ const formSubmitEvent = async () => {
     isLoggingIn = false;
 };
 
-const initializePage = () => {
+export const initializePage = (): void => {
+    bcryptHash = window.dcodeIO.bcrypt.hash;
     createStatusLegend(document.getElementById("statusLegend"));
     applyCircleColors();
 };

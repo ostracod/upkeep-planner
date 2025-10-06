@@ -1,14 +1,15 @@
 
-// TODO: Remove this dummy export statement.
-export {};
+import { makeRequest } from "./global.js";
 
+let bcryptHash: (password: string, salt: string) => Promise<string>;
+let genBcryptSalt: (roundAmount: number) => string;
 let isCreatingAccount = false;
 
-const createAccount = async () => {
-    const usernameTag = document.getElementById("username");
-    const passwordTag = document.getElementById("password");
-    const confirmPasswordTag = document.getElementById("confirmPassword");
-    const emailAddressTag = document.getElementById("emailAddress");
+const createAccount = async (): Promise<void> => {
+    const usernameTag = document.getElementById("username") as HTMLInputElement;
+    const passwordTag = document.getElementById("password") as HTMLInputElement;
+    const confirmPasswordTag = document.getElementById("confirmPassword") as HTMLInputElement;
+    const emailAddressTag = document.getElementById("emailAddress") as HTMLInputElement;
     const username = usernameTag.value;
     const password = passwordTag.value;
     const confirmPassword = confirmPasswordTag.value;
@@ -38,9 +39,9 @@ const createAccount = async () => {
         emailAddressTag.focus();
         return;
     }
-    const authSalt = await dcodeIO.bcrypt.genSalt(10);
-    const keySalt = await dcodeIO.bcrypt.genSalt(10);
-    const authHash = await dcodeIO.bcrypt.hash(password, authSalt);
+    const authSalt = await genBcryptSalt(10);
+    const keySalt = await genBcryptSalt(10);
+    const authHash = await bcryptHash(password, authSalt);
     await makeRequest("/createAccountAction", {
         username,
         authSalt,
@@ -49,10 +50,10 @@ const createAccount = async () => {
         emailAddress,
     });
     alert("Your account was created successfully.");
-    window.location = "/login";
+    window.location = "/login" as (string & Location);
 };
 
-const formSubmitEvent = async () => {
+window.formSubmitEvent = async (): Promise<void> => {
     if (isCreatingAccount) {
         return;
     }
@@ -66,6 +67,11 @@ const formSubmitEvent = async () => {
     }
     messageTag.innerHTML = "";
     isCreatingAccount = false;
+};
+
+export const initializePage = (): void => {
+    bcryptHash = window.dcodeIO.bcrypt.hash;
+    genBcryptSalt = window.dcodeIO.bcrypt.genSalt;
 };
 
 

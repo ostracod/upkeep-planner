@@ -1,14 +1,8 @@
 
-import { TaskStatusName, statusColors, makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
+import { TaskStatusName, PlannerDate, ContainerJson, PlannerItemJson, TaskJson, CategoryJson, statusColors, makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
 type NativeDate = Date;
-
-interface PlannerDate {
-    year: number;
-    month: number;
-    day: number;
-}
 
 interface ButtonDef {
     text: string;
@@ -25,32 +19,6 @@ interface CompletionJson {
     date: PlannerDate;
     dateIsApproximate: boolean;
     notes: string;
-}
-
-interface ContainerJson {
-    plannerItems: PlannerItemJson[];
-}
-
-interface PlannerItemJson {
-    type: string;
-    name: string;
-}
-
-interface TaskJson extends PlannerItemJson {
-    type: "task";
-    id: number;
-    frequency: number | null;
-    dueDate: PlannerDate | null;
-    dueDateIsManual: boolean | null;
-    upcomingPeriod: number | null;
-    gracePeriod: number | null;
-    activeMonths: boolean[] | null;
-    notes: string;
-}
-
-interface CategoryJson extends PlannerItemJson {
-    type: "category";
-    container: ContainerJson;
 }
 
 const newCategoryName = "New Category";
