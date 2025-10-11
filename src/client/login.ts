@@ -27,7 +27,7 @@ const logIn = async (): Promise<void> => {
     window.location = "/tasks" as (string & Location);
 };
 
-const formSubmitEvent = async (): Promise<void> => {
+window.formSubmitEvent = async (): Promise<void> => {
     if (isLoggingIn) {
         return;
     }

@@ -1437,7 +1437,9 @@ const startTaskCreation = (parentCategory: Category | null = null): void => {
     tag_editTaskNotes.value = "";
 };
 
-const startTaskEdit = (): void => {
+window.startTaskCreation = startTaskCreation;
+
+window.startTaskEdit = (): void => {
     showPage("editTask");
     tag_editTaskName.value = currentTask.name;
     tag_editFrequency.value = `${currentTask.frequency ?? ""}`;
@@ -1488,6 +1490,8 @@ const handleScheduleTypeChange = (): void => {
     document.getElementById("isManualContainer").style.display = isRepeating ? "" : "none";
     updateEditDueDate();
 };
+
+window.handleScheduleTypeChange = handleScheduleTypeChange;
 
 const dateIsInActiveMonth = (date: PlannerDate, activeMonths: boolean[] | null): boolean => (
     (activeMonths === null) ? true : activeMonths[date.month - 1]
@@ -1547,6 +1551,8 @@ const updateEditDueDate = (): void => {
     tag_editDueDate.value = convertDateToString(dueDate);
 };
 
+window.updateEditDueDate = updateEditDueDate;
+
 const handleUpcomingPeriodChange = (): void => {
     let labelText = "Upcoming period";
     let displayStyle: string;
@@ -1560,6 +1566,8 @@ const handleUpcomingPeriodChange = (): void => {
     document.getElementById("editUpcomingContainer").style.display = displayStyle;
 };
 
+window.handleUpcomingPeriodChange = handleUpcomingPeriodChange;
+
 const handleGracePeriodChange = (): void => {
     let labelText = "Grace period";
     let displayStyle: string;
@@ -1572,6 +1580,8 @@ const handleGracePeriodChange = (): void => {
     document.getElementById("gracePeriodLabel").innerHTML = labelText;
     document.getElementById("editGraceContainer").style.display = displayStyle;
 };
+
+window.handleGracePeriodChange = handleGracePeriodChange;
 
 const getEditParentContainer = (): Container => {
     const parentIndex = parseInt(tag_editParentCategory.value, 10);
@@ -1590,7 +1600,7 @@ const getEditActiveMonths = (): boolean[] | null => {
     return hasInactiveMonth ? activeMonths : null;
 };
 
-const saveTask = (): void => {
+window.saveTask = (): void => {
     const name = tag_editTaskName.value;
     if (name.length <= 0) {
         alert("Please enter a task name.");
@@ -1695,6 +1705,8 @@ const viewPlannerItems = (): void => {
     showPage("viewPlannerItems");
 };
 
+window.viewPlannerItems = viewPlannerItems;
+
 const displayNotes = (destTag: HTMLParagraphElement, notes: string) => {
     const lines = ["Notes:", ...notes.split("\n")];
     destTag.innerHTML = "";
@@ -1787,7 +1799,7 @@ const viewTask = async (task: Task | null = null): Promise<void> => {
     currentTask.displayCompletions();
 };
 
-const cancelTaskEdit = (): void => {
+window.cancelTaskEdit = (): void => {
     if (currentTask === null) {
         viewPlannerItems();
     } else {
@@ -1795,7 +1807,7 @@ const cancelTaskEdit = (): void => {
     }
 };
 
-const deleteTask = (): void => {
+window.deleteTask = (): void => {
     const shouldDelete = confirm("Are you sure you want to delete this task?");
     if (shouldDelete) {
         currentTask.delete();
@@ -1804,7 +1816,7 @@ const deleteTask = (): void => {
     }
 };
 
-const saveNewCompletion = (): void => {
+window.saveNewCompletion = (): void => {
     const dateString = tag_newCompletionDate.value;
     if (dateString.length <= 0) {
         alert("Please enter a date for the new completion.");
@@ -1818,7 +1830,7 @@ const saveNewCompletion = (): void => {
     clearNewCompletionForm();
 };
 
-const addRootCategory = (): void => {
+window.addRootCategory = (): void => {
     const category = new Category(newCategoryName);
     rootContainer.addItem(category);
     if (!category.isVisible) {
@@ -1862,7 +1874,9 @@ const handleTaskFilterChange = (): void => {
     updatePlannerItemVisibilities();
 };
 
-const downloadJsonFile = async (): Promise<void> => {
+window.handleTaskFilterChange = handleTaskFilterChange;
+
+window.downloadJsonFile = async (): Promise<void> => {
     const buttonTag = document.getElementById("downloadButton");
     const messageTag = document.getElementById("downloadMessage");
     buttonTag.style.display = "none";

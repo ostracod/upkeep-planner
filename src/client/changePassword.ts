@@ -106,7 +106,7 @@ const changePassword = async (): Promise<void> => {
     window.location = "/tasks" as (string & Location);
 };
 
-const formSubmitEvent = async () => {
+window.formSubmitEvent = async () => {
     if (isChangingPassword) {
         return;
     }
