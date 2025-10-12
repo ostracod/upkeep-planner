@@ -1,6 +1,6 @@
 
 import { AccountRequest, GetSaltsResponse, ValidateAuthHashRequest, ChangePasswordRequest, ChangePasswordResponse, GetChunksRequest, GetChunksResponse } from "../common/types.js";
-import { PlannerItemJson, TaskJson, CategoryJson, LocalStorageData, makeRequest } from "./global.js";
+import { ContainerJson, PlannerItemJson, TaskJson, CategoryJson, LocalStorageData, makeRequest } from "./global.js";
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
 let bcryptHash: (password: string, salt: string) => Promise<string>;
@@ -90,7 +90,7 @@ const changePassword = async (): Promise<void> => {
     const chunks = await getChunks(["plannerItems", "recentCompletions"]);
     const plannerItemsChunk = chunks.plannerItems;
     if (plannerItemsChunk !== null) {
-        const { plannerItems } = plannerItemsChunk;
+        const { plannerItems } = plannerItemsChunk as ContainerJson;
         const taskIds: number[] = [];
         getTaskIds(taskIds, plannerItems);
         const oldCompletionsKeys = taskIds.map((id) => "oldCompletions." + id);

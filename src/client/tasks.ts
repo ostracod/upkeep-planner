@@ -4,6 +4,7 @@ import { TaskStatusName, PlannerDate, ContainerJson, PlannerItemJson, TaskJson, 
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
 type NativeDate = Date;
+type PageId = "loadingScreen" | "viewPlannerItems" | "viewTask" | "editTask"
 
 interface ButtonDef {
     text: string;
@@ -58,12 +59,12 @@ let shortFaultMessage: string | null = null;
 let encryptionKey: CryptoKey;
 let rootContainer: Container;
 let allCategories: Category[];
-let currentTask: Task;
+let currentTask: Task | null = null;
 let nextTaskId: number;
 let recentCompletions: Set<Completion> = new Set();
 let activeMonthCheckboxes: HTMLInputElement[];
 let lastTimerEventDate: PlannerDate | null = null;
-let currentPageId: string | null = null;
+let currentPageId: PageId | null = null;
 let plannerItemsScroll: number | null = null;
 let taskFilter: string;
 
@@ -146,7 +147,7 @@ const updateSaveMessage = (): void => {
     let saveMessage: string;
     if (hasFault) {
         color = "#DD0000";
-        saveMessage = "Communication error! " + shortFaultMessage;
+        saveMessage = "Error! " + shortFaultMessage;
     } else if (currentRequest?.isSave || requestQueue.some((request) => request.isSave)) {
         saveMessage = "Saving...";
     } else if (saveTimestamp === null) {
@@ -167,6 +168,14 @@ const checkRequestQueue = (): void => {
     updateSaveMessage();
 };
 
+const enterFaultState = (message: string, shortMessage = "Please reload page."): void => {
+    hasFault = true;
+    faultMessage = message;
+    shortFaultMessage = shortMessage;
+    alert(faultMessage);
+    updateSaveMessage();
+};
+
 const dispatchRequest = <T>(
     isSave: boolean,
     requestFunc: () => Promise<T>,
@@ -181,11 +190,7 @@ const dispatchRequest = <T>(
         try {
             result = await requestFunc();
         } catch (error) {
-            hasFault = true;
-            faultMessage = error.message;
-            shortFaultMessage = error.shortMessage ?? "Please reload page.";
-            alert(faultMessage);
-            updateSaveMessage();
+            enterFaultState(error.message, error.shortMessage);
             reject(error);
             return;
         }
@@ -282,7 +287,7 @@ const loadOldCompletions = async (tasks: Task[], isSave = false): Promise<void> 
     }
     const chunks = await getChunks(chunkKeys, isSave);
     for (const task of tasks) {
-        const completionsData = chunks[task.getOldCompletionsKey()];
+        const completionsData = chunks[task.getOldCompletionsKey()] as CompletionJson[];
         // Check `loadedOldCompletions` again to make sure we don't
         // accidentally add the same completions twice.
         if (!task.loadedOldCompletions) {
@@ -295,12 +300,19 @@ const loadOldCompletions = async (tasks: Task[], isSave = false): Promise<void> 
     }
 };
 
+// Saves recent completions, and flushes recent completions to old completions if
+// completionFlushThreshold is met. Saves old completions for oldCompletionsTask if provided.
 // Old completions must have been previously loaded for oldCompletionsTask.
 const saveCompletions = async (oldCompletionsTask: Task | null = null): Promise<void> => {
     const tasks = getAllTasks();
     const surplusCount = recentCompletions.size - tasks.length;
+    // Stores all tasks for which old completions should be updated.
     const oldCompletionsTasks: Task[] = [];
     if (oldCompletionsTask !== null) {
+        if (!oldCompletionsTask.loadedOldCompletions) {
+            enterFaultState("Failed assertion for oldCompletionsTask!");
+            return;
+        }
         oldCompletionsTasks.push(oldCompletionsTask);
     }
     if (surplusCount >= completionFlushThreshold) {
@@ -781,6 +793,8 @@ class Task extends PlannerItem {
     gracePeriod: number | null;
     activeMonths: boolean[] | null;
     notes: string;
+    // `completions` is sorted by date ascending. Initially `completions` only contains
+    // the most recent completion until loadOldCompletions is called with the task.
     completions: Completion[];
     loadedOldCompletions: boolean;
     isDeleted: boolean;
@@ -974,6 +988,9 @@ class Task extends PlannerItem {
         let dueDateHasChanged = false;
         if (this.dueDateIsManual) {
             const completionDate = this.getLastCompletionDate();
+            // We have just finished the task if the most recent completion is after
+            // the due date OR we just added the most recent completion (regardless
+            // of the completion date).
             if ((completionDate !== null && subtractDates(completionDate, this.dueDate) >= 0)
                     || addedNewCompletion) {
                 if (this.frequency === null) {
@@ -1010,7 +1027,11 @@ class Task extends PlannerItem {
     }
     
     handleCompletionsChange(
+        // addedNewCompletion should be true iff we just added a completion
+        // AND it is the most recent completion of the task.
         addedNewCompletion: boolean,
+        // Set shouldSaveOldCompletions to true if any completion outside
+        // of recentCompletions may have been modified.
         shouldSaveOldCompletions: boolean,
     ): void {
         this.completionsChangeHelper();
@@ -1375,7 +1396,7 @@ const jsonToPlannerItem = (data: PlannerItemJson): PlannerItem => {
     }
 };
 
-const showPage = (idToShow: string): void => {
+const showPage = (idToShow: PageId): void => {
     if (currentPageId === "viewPlannerItems") {
         plannerItemsScroll = window.scrollY;
     }
@@ -1516,7 +1537,7 @@ const advanceDateMonth = (date: PlannerDate): PlannerDate => {
 };
 
 const calculateDueDate = (
-    frequency: number | null,
+    frequency: number,
     activeMonths: boolean[] | null,
     lastCompletionDate: PlannerDate | null,
 ): PlannerDate => {
@@ -2012,7 +2033,7 @@ export const initializePage = async (): Promise<void> => {
     }
     if (chunks.recentCompletions !== null) {
         const completionsMap = new Map();
-        for (const completionData of chunks.recentCompletions) {
+        for (const completionData of (chunks.recentCompletions as CompletionJson[])) {
             const { taskId } = completionData;
             const completion = jsonToCompletion(completionData);
             let completions = completionsMap.get(taskId);

@@ -141,7 +141,7 @@ const checkAuthentication = (req: Request, res: Response): boolean => {
 
 const sendErrorResponse = (res: Response, message: string, shortMessage?: string): void => {
     const errorResponse: ErrorResponse = { success: false, message };
-    if (typeof shortMessage === "undefined") {
+    if (typeof shortMessage !== "undefined") {
         errorResponse.shortMessage = shortMessage;
     }
     res.json(errorResponse);
