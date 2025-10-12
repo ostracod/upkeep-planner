@@ -1,4 +1,6 @@
 
+import { Response, ErrorResponse } from "../common/types.js";
+
 export type TaskStatusName = "neverCompleted" | "completed" | "upcoming" | "grace" | "overdue" | "inactive";
 
 export interface PlannerDate {
@@ -42,7 +44,7 @@ class ServerError extends Error {
     }
 }
 
-export const makeRequest = async (path: string, data: any): Promise<any> => {
+export const makeRequest = async (path: string, data: any): Promise<Response> => {
     const response = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,9 +53,10 @@ export const makeRequest = async (path: string, data: any): Promise<any> => {
     if (response.status !== 200) {
         throw new Error("There was an error while communicating with the server.");
     }
-    const responseData = await response.json();
+    const responseData = await response.json() as Response;
     if (!responseData.success) {
-        throw new ServerError(responseData.message, responseData.shortMessage ?? null);
+        const errorResponse = responseData as ErrorResponse;
+        throw new ServerError(errorResponse.message, errorResponse.shortMessage ?? null);
     }
     return responseData;
 };

@@ -1,4 +1,5 @@
 
+import { GetAuthSaltRequest, GetAuthSaltResponse, LoginRequest, LoginResponse } from "../common/types.js";
 import { makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
 
 let bcryptHash: (password: string, salt: string) => Promise<string>;
@@ -19,9 +20,15 @@ const logIn = async (): Promise<void> => {
         passwordTag.focus();
         return;
     }
-    const { authSalt } = await makeRequest("/getAuthSalt", { username });
+    const { authSalt } = await makeRequest(
+        "/getAuthSalt",
+        { username } satisfies GetAuthSaltRequest,
+    ) as GetAuthSaltResponse;
     const authHash = await bcryptHash(password, authSalt);
-    const { keySalt, keyVersion } = await makeRequest("/loginAction", { username, authHash });
+    const { keySalt, keyVersion } = await makeRequest(
+        "/loginAction",
+        { username, authHash } satisfies LoginRequest,
+    ) as LoginResponse;
     const keyHash = await bcryptHash(password, keySalt);
     localStorage.setItem("keyData", JSON.stringify({ keyHash, keyVersion }));
     window.location = "/tasks" as (string & Location);

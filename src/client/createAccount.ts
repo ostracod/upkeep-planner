@@ -1,4 +1,5 @@
 
+import { CreateAccountRequest } from "../common/types.js";
 import { makeRequest } from "./global.js";
 
 let bcryptHash: (password: string, salt: string) => Promise<string>;
@@ -48,7 +49,7 @@ const createAccount = async (): Promise<void> => {
         keySalt,
         authHash,
         emailAddress,
-    });
+    } satisfies CreateAccountRequest);
     alert("Your account was created successfully.");
     window.location = "/login" as (string & Location);
 };

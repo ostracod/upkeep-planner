@@ -1,4 +1,5 @@
 
+import { AccountRequest, GetSaltsResponse, ValidateAuthHashRequest, ChangePasswordRequest, ChangePasswordResponse, GetChunksRequest, GetChunksResponse } from "../common/types.js";
 import { PlannerItemJson, TaskJson, CategoryJson, makeRequest } from "./global.js";
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
@@ -14,7 +15,7 @@ const getChunks = async (names: string[]): Promise<{ [name: string]: any }> => {
         names,
         keyVersion: oldKeyVersion,
         chunksVersion,
-    });
+    } satisfies GetChunksRequest) as GetChunksResponse;
     const output: { [name: string]: any } = {};
     for (const name of names) {
         const chunk = response.chunks[name];
@@ -55,7 +56,10 @@ const changePassword = async (): Promise<void> => {
         confirmPasswordTag.focus();
         return;
     }
-    const response = await makeRequest("/getSalts", {});
+    const response = await makeRequest(
+        "/getSalts",
+        {} satisfies AccountRequest,
+    ) as GetSaltsResponse;
     const { authSalt: oldAuthSalt, keySalt: oldKeySalt } = response;
     oldKeyVersion = response.keyVersion;
     chunksVersion = response.chunksVersion;
@@ -66,7 +70,7 @@ const changePassword = async (): Promise<void> => {
         authHash: oldAuthHash,
         keyVersion: oldKeyVersion,
         chunksVersion,
-    });
+    } satisfies ValidateAuthHashRequest);
     const newAuthSalt = await genBcryptSalt(10);
     const newAuthHash = await bcryptHash(newPassword, newAuthSalt);
     const newKeySalt = await genBcryptSalt(10);
@@ -99,7 +103,7 @@ const changePassword = async (): Promise<void> => {
         keyVersion: oldKeyVersion,
         chunksVersion,
         chunks: encryptedChunks,
-    });
+    } satisfies ChangePasswordRequest) as ChangePasswordResponse;
     const keyData = JSON.stringify({ keyHash: newKeyHash, keyVersion: newKeyVersion });
     localStorage.setItem("keyData", keyData);
     alert("Your password was changed successfully.");

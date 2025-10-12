@@ -16,6 +16,7 @@ import Mustache from "mustache";
 import mustacheExpress from "mustache-express";
 import bcrypt from "bcrypt";
 import { Level } from "level";
+import { ErrorResponse, CreateAccountRequest, GetAuthSaltRequest, GetAuthSaltResponse, LoginRequest, LoginResponse, AccountRequest, GetSaltsResponse, ValidateAuthHashRequest, ChangePasswordRequest, ChangePasswordResponse, GetChunksRequest, GetChunksResponse, SetChunksRequest, SetChunksResponse, GetTaskFilterResponse, SetTaskFilterRequest } from "./common/types.js";
 
 dotenv.config();
 
@@ -61,6 +62,7 @@ const projectPath = pathUtils.dirname(distPath);
 const databasePath = pathUtils.join(projectPath, "levelDb");
 const publicPath = pathUtils.join(projectPath, "public");
 const viewsPath = pathUtils.join(projectPath, "views");
+const commonJsPath = pathUtils.join(distPath, "common");
 const clientJsPath = pathUtils.join(distPath, "client");
 const privateKeyPath = pathUtils.join(projectPath, "ssl.key");
 const certificatePath = pathUtils.join(projectPath, "ssl.crt");
@@ -131,6 +133,14 @@ const checkAuthentication = (req: Request, res: Response): boolean => {
     return false;
 };
 
+const sendErrorResponse = (res: Response, message: string, shortMessage?: string): void => {
+    const errorResponse: ErrorResponse = { success: false, message };
+    if (typeof shortMessage === "undefined") {
+        errorResponse.shortMessage = shortMessage;
+    }
+    res.json(errorResponse);
+};
+
 const checkAuthHash = async (
     authHash: string,
     account: Account,
@@ -138,10 +148,7 @@ const checkAuthHash = async (
 ): Promise<boolean> => {
     const hashMatches = await bcrypt.compare(authHash, account.authHashHash);
     if (!hashMatches) {
-        res.json({
-            success: false,
-            message: "Incorrect password.",
-        });
+        sendErrorResponse(res, "Incorrect password.");
         return false;
     }
     return true;
@@ -163,7 +170,7 @@ const runAccountFunc = (
 ): Promise<void> => new Promise<void>((resolve, reject) => {
     const username = getUsername(req);
     if (username === null) {
-        res.json({ success: false, message: "You are not currently logged in." });
+        sendErrorResponse(res, "You are not currently logged in.");
         return null;
     }
     const jobSymbol = Symbol();
@@ -234,27 +241,21 @@ const createAccountEndpoint = (
 ): void => {
     router.post(path, async (req, res) => {
         if (isShuttingDown) {
-            res.json({
-                success: false,
-                message: "The server is shutting down. Please try again later.",
-            });
+            sendErrorResponse(res, "The server is shutting down. Please try again later.");
             return;
         }
-        const { chunksVersion, keyVersion } = req.body;
+        const { chunksVersion, keyVersion } = req.body as AccountRequest;
         await runAccountFunc(req, res, async (account) => {
             if (typeof keyVersion !== "undefined" && keyVersion !== account.keyVersion) {
-                res.json({
-                    success: false,
-                    message: "Your password has changed. Please log in again.",
-                    shortMessage: "Please log in again.",
-                });
+                sendErrorResponse(
+                    res,
+                    "Your password has changed. Please log in again.",
+                    "Please log in again.",
+                );
                 return;
             }
             if (typeof chunksVersion !== "undefined" && chunksVersion !== account.chunksVersion) {
-                res.json({
-                    success: false,
-                    message: "Your client data is stale. Please reload this page.",
-                });
+                sendErrorResponse(res, "Your client data is stale. Please reload this page.");
                 return;
             }
             await handler(req, res, account);
@@ -295,13 +296,12 @@ router.get("/createAccount", (req, res) => {
 });
 
 router.post("/createAccountAction", async (req, res) => {
-    const { username, authSalt, keySalt, authHash, emailAddress } = req.body;
+    const {
+        username, authSalt, keySalt, authHash, emailAddress,
+    } = req.body as CreateAccountRequest;
     const accountKey = getAccountKey(username);
     if (await levelKeyExists(accountKey)) {
-        res.json({
-            success: false,
-            message: "An account with that username already exists.",
-        });
+        sendErrorResponse(res, "An account with that username already exists.");
         return;
     }
     const authHashHash = await bcrypt.hash(authHash, 10);
@@ -319,35 +319,33 @@ router.post("/createAccountAction", async (req, res) => {
 });
 
 router.post("/getAuthSalt", async (req, res) => {
-    const { username } = req.body;
+    const { username } = req.body as GetAuthSaltRequest;
     const accountKey = getAccountKey(username);
     const account = await levelGetSafe(accountKey);
     if (account === null) {
-        res.json({
-            success: false,
-            message: "Could not find an account with the given username.",
-        });
+        sendErrorResponse(res, "Could not find an account with the given username.");
         return;
     }
-    res.json({ success: true, authSalt: account.authSalt });
+    res.json({ success: true, authSalt: account.authSalt } satisfies GetAuthSaltResponse);
 });
 
 router.post("/loginAction", async (req, res) => {
-    const { username, authHash } = req.body;
+    const { username, authHash } = req.body as LoginRequest;
     const accountKey = getAccountKey(username);
     const account = await levelGetSafe(accountKey);
     if (account === null) {
-        res.json({
-            success: false,
-            message: "Could not find an account with the given username.",
-        });
+        sendErrorResponse(res, "Could not find an account with the given username.");
         return;
     }
     if (!(await checkAuthHash(authHash, account, res))) {
         return;
     }
     req.session.username = username;
-    res.json({ success: true, keySalt: account.keySalt, keyVersion: account.keyVersion });
+    res.json({
+        success: true,
+        keySalt: account.keySalt,
+        keyVersion: account.keyVersion,
+    } satisfies LoginResponse);
 });
 
 router.get("/logout", (req, res) => {
@@ -384,18 +382,21 @@ createAccountEndpoint("/getSalts", (req, res, account) => {
         keySalt: account.keySalt,
         keyVersion: account.keyVersion,
         chunksVersion: account.chunksVersion,
-    });
+    } satisfies GetSaltsResponse);
 });
 
 createAccountEndpoint("/validateAuthHash", async (req, res, account) => {
-    if (!(await checkAuthHash(req.body.authHash, account, res))) {
+    const { authHash } = req.body as ValidateAuthHashRequest;
+    if (!(await checkAuthHash(authHash, account, res))) {
         return;
     }
     res.json({ success: true });
 });
 
 createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
-    const { oldAuthHash, newAuthSalt, newAuthHash, newKeySalt, chunks } = req.body;
+    const {
+        oldAuthHash, newAuthSalt, newAuthHash, newKeySalt, chunks,
+    } = req.body as ChangePasswordRequest;
     if (!(await checkAuthHash(oldAuthHash, account, res))) {
         return;
     }
@@ -406,12 +407,15 @@ createAccountEndpoint("/changePasswordAction", async (req, res, account) => {
     await setChunks(chunks, account.username);
     account.chunksVersion += 1;
     await putAccount(account);
-    res.json({ success: true, keyVersion: account.keyVersion });
+    res.json({
+        success: true,
+        keyVersion: account.keyVersion,
+    } satisfies ChangePasswordResponse);
 });
 
 createAccountEndpoint("/getChunks", async (req, res, account) => {
     const chunks = {};
-    for (const name of req.body.names) {
+    for (const name of (req.body as GetChunksRequest).names) {
         const chunkKey = getChunkKey(name, account.username);
         chunks[name] = await levelGetSafe(chunkKey);
     }
@@ -419,26 +423,29 @@ createAccountEndpoint("/getChunks", async (req, res, account) => {
         success: true,
         chunks,
         chunksVersion: account.chunksVersion,
-    });
+    } satisfies GetChunksResponse);
 });
 
 createAccountEndpoint("/setChunks", async (req, res, account) => {
-    const { chunks } = req.body;
+    const { chunks } = req.body as SetChunksRequest;
     await setChunks(chunks, account.username);
     account.chunksVersion += 1;
     await putAccount(account);
-    res.json({ success: true, chunksVersion: account.chunksVersion });
+    res.json({
+        success: true,
+        chunksVersion: account.chunksVersion,
+    } satisfies SetChunksResponse);
 });
 
 createAccountEndpoint("/getTaskFilter", async (req, res, account) => {
     res.json({
         success: true,
         taskFilter: account.taskFilter ?? "all",
-    });
+    } satisfies GetTaskFilterResponse);
 });
 
 createAccountEndpoint("/setTaskFilter", async (req, res, account) => {
-    account.taskFilter = req.body.taskFilter;
+    account.taskFilter = (req.body as SetTaskFilterRequest).taskFilter;
     await putAccount(account);
     res.json({ success: true });
 });
@@ -465,7 +472,8 @@ expressApp.use(express.static(publicPath));
 expressApp.set("views", viewsPath);
 expressApp.engine("html", mustacheExpress());
 expressApp.use("/", router);
-expressApp.use("/javascript", express.static(clientJsPath));
+expressApp.use("/javascript/common", express.static(commonJsPath));
+expressApp.use("/javascript/client", express.static(clientJsPath));
 
 // Catch 404 status and forward to error handler.
 expressApp.use((req, res, next) => {

@@ -1,4 +1,5 @@
 
+import { GetChunksRequest, GetChunksResponse, SetChunksRequest, SetChunksResponse, AccountRequest, GetTaskFilterResponse, SetTaskFilterRequest } from "../common/types.js";
 import { TaskStatusName, PlannerDate, ContainerJson, PlannerItemJson, TaskJson, CategoryJson, statusColors, makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
@@ -204,11 +205,11 @@ const getChunks = async (
     isSave = false,
 ): Promise<{ [name: string]: any }> => {
     return await dispatchRequest<any>(isSave, async () => {
-        const body: any = { keyVersion, names };
+        const body: GetChunksRequest = { keyVersion, names };
         if (chunksVersion !== null) {
             body.chunksVersion = chunksVersion;
         }
-        const response = await makeRequest("/getChunks", body);
+        const response = await makeRequest("/getChunks", body) as GetChunksResponse;
         chunksVersion = response.chunksVersion;
         const output = {};
         for (const name of names) {
@@ -230,22 +231,29 @@ const setChunks = async (chunks: { [name: string]: any }): Promise<void> => {
     await dispatchRequest<void>(true, async () => {
         const response = await makeRequest(
             "/setChunks",
-            { chunksVersion, keyVersion, chunks: encryptedChunks },
-        );
+            { chunksVersion, keyVersion, chunks: encryptedChunks } satisfies SetChunksRequest,
+        ) as SetChunksResponse;
         chunksVersion = response.chunksVersion;
     });
 };
 
 const readTaskFilter = async (): Promise<string> => {
     return await dispatchRequest<string>(false, async () => {
-        return (await makeRequest("/getTaskFilter", {})).taskFilter;
+        const response = await makeRequest(
+            "/getTaskFilter",
+            {} satisfies AccountRequest,
+        ) as GetTaskFilterResponse;
+        return response.taskFilter;
     });
 };
 
 const writeTaskFilter = async (): Promise<void> => {
     const filterToWrite = taskFilter;
     await dispatchRequest<void>(true, async () => {
-        await makeRequest("/setTaskFilter", { taskFilter: filterToWrite });
+        await makeRequest(
+            "/setTaskFilter",
+            { taskFilter: filterToWrite } satisfies SetTaskFilterRequest,
+        );
     });
 };
 
