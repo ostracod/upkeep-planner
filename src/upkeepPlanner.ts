@@ -32,12 +32,18 @@ interface ExpressError extends Error {
 
 interface Account {
     username: string;
+    // authSalt is hashed with the account password to create the "auth hash".
+    // The auth hash is sent to the server to authenticate the user.
     authSalt: string;
+    // authHashHash is a hash of the auth hash. We store a hash of the hash so that
+    // a database leak will not allow a bad actor to impersonate a user.
     authHashHash: string;
+    // keySalt is hashed with the account password to create the "key hash".
+    // The key hash is used to encrypt and decrypt chunks on the client side.
     keySalt: string;
-    keyVersion: number;
+    keyVersion: number; // Increments by 1 each time the user changes their password.
     emailAddress: string;
-    chunksVersion: number;
+    chunksVersion: number; // Increments by 1 each time the user modifies chunks.
     taskFilter: string;
 }
 

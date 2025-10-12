@@ -1,4 +1,15 @@
 
+// A "chunk" stores encrypted user data with a unique name.
+// The following chunks are stored for each account:
+// > "plannerItems" stores ContainerJson of the root container.
+// > "recentCompletions" stores CompletionJson[] of the following:
+//     > The most recent completion of each task
+//     > Up to completionFlushThreshold older completions
+// > "oldCompletions.<taskId>" stores the remaining CompletionJson[]
+//   of the task whose ID is <taskId>.
+// When the length of recentCompletions becomes too large, recent
+// completions are "flushed" to oldCompletions.<taskId>.
+
 const ivLength = 16;
 
 const convertTextToBuffer = (text: string): ArrayBuffer  => {

@@ -1,6 +1,6 @@
 
 import { AccountRequest, GetSaltsResponse, ValidateAuthHashRequest, ChangePasswordRequest, ChangePasswordResponse, GetChunksRequest, GetChunksResponse } from "../common/types.js";
-import { PlannerItemJson, TaskJson, CategoryJson, makeRequest } from "./global.js";
+import { PlannerItemJson, TaskJson, CategoryJson, LocalStorageData, makeRequest } from "./global.js";
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
 let bcryptHash: (password: string, salt: string) => Promise<string>;
@@ -34,6 +34,17 @@ const getTaskIds = (dest: number[], plannerItems: PlannerItemJson[]): void => {
     }
 };
 
+// changePassword performs these steps:
+// 1. Load auth salt and key salt.
+// 2. Validate that the old password is correct by sending an auth hash to the server.
+// 3. Generate new auth salt and key salt.
+// 4. Load all chunks belonging to the account.
+// 5. Re-encrypt the chunks using the new key hash.
+// 6. In a single atomic server-side request:
+//     > Validate the old auth hash again.
+//     > Update the account salts and auth hash.
+//     > Persist the re-encrypted chunks.
+// 7. Update key data in local storage.
 const changePassword = async (): Promise<void> => {
     const oldPasswordTag = document.getElementById("oldPassword") as HTMLInputElement;
     const newPasswordTag = document.getElementById("newPassword") as HTMLInputElement;
@@ -104,7 +115,10 @@ const changePassword = async (): Promise<void> => {
         chunksVersion,
         chunks: encryptedChunks,
     } satisfies ChangePasswordRequest) as ChangePasswordResponse;
-    const keyData = JSON.stringify({ keyHash: newKeyHash, keyVersion: newKeyVersion });
+    const keyData = JSON.stringify({
+        keyHash: newKeyHash,
+        keyVersion: newKeyVersion
+    } satisfies LocalStorageData);
     localStorage.setItem("keyData", keyData);
     alert("Your password was changed successfully.");
     window.location = "/tasks" as (string & Location);

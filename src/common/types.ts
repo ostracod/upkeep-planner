@@ -6,7 +6,7 @@ export interface Response {
 export interface ErrorResponse extends Response {
     success: false;
     message: string;
-    shortMessage?: string;
+    shortMessage?: string; // Displayed in the top right corner of the tasks page.
 }
 
 export interface CreateAccountRequest {
@@ -36,6 +36,8 @@ export interface LoginResponse extends Response {
 }
 
 export interface AccountRequest {
+    // If keyVersion or chunksVersion are present, the server will validate
+    // these versions against the account stored in the database.
     keyVersion?: number;
     chunksVersion?: number;
 }

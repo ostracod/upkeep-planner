@@ -1,6 +1,6 @@
 
 import { GetChunksRequest, GetChunksResponse, SetChunksRequest, SetChunksResponse, AccountRequest, GetTaskFilterResponse, SetTaskFilterRequest } from "../common/types.js";
-import { TaskStatusName, PlannerDate, ContainerJson, PlannerItemJson, TaskJson, CategoryJson, statusColors, makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
+import { TaskStatusName, PlannerDate, ContainerJson, PlannerItemJson, TaskJson, CategoryJson, LocalStorageData, statusColors, makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
 type NativeDate = Date;
@@ -1959,7 +1959,7 @@ export const initializePage = async (): Promise<void> => {
         window.location = "/login" as (string & Location);
     }
     showLoadingScreen("Loading tasks...");
-    ({ keyHash, keyVersion } = JSON.parse(keyData));
+    ({ keyHash, keyVersion } = JSON.parse(keyData) as LocalStorageData);
     encryptionKey = await getEncryptionKey(keyHash);
     const monthsTag = document.getElementById("editActiveMonths");
     activeMonthCheckboxes = [];

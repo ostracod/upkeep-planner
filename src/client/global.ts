@@ -35,6 +35,11 @@ export interface CategoryJson extends PlannerItemJson {
     container: ContainerJson;
 }
 
+export interface LocalStorageData {
+    keyHash: string; // Stores the account password hashed with Account.keySalt.
+    keyVersion: number;
+}
+
 class ServerError extends Error {
     shortMessage: string;
     

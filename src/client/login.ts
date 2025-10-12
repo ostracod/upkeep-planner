@@ -1,10 +1,16 @@
 
 import { GetAuthSaltRequest, GetAuthSaltResponse, LoginRequest, LoginResponse } from "../common/types.js";
-import { makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
+import { LocalStorageData, makeRequest, createStatusLegend, applyCircleColors } from "./global.js";
 
 let bcryptHash: (password: string, salt: string) => Promise<string>;
 let isLoggingIn = false;
 
+// logIn performs these steps:
+// 1. Retrieve the auth salt of the account. The salt is not private information.
+// 2. Hash the password with the auth salt to produce an auth hash.
+// 3. Authenticate against the server and receives the key salt.
+// 4. Hash the password with the key salt to produce a key hash.
+// 5. Store the key hash in local storage so it may be used later for encryption.
 const logIn = async (): Promise<void> => {
     const usernameTag = document.getElementById("username") as HTMLInputElement;
     const passwordTag = document.getElementById("password") as HTMLInputElement;
@@ -30,7 +36,8 @@ const logIn = async (): Promise<void> => {
         { username, authHash } satisfies LoginRequest,
     ) as LoginResponse;
     const keyHash = await bcryptHash(password, keySalt);
-    localStorage.setItem("keyData", JSON.stringify({ keyHash, keyVersion }));
+    const keyData = JSON.stringify({ keyHash, keyVersion } satisfies LocalStorageData);
+    localStorage.setItem("keyData", keyData);
     window.location = "/tasks" as (string & Location);
 };
 
