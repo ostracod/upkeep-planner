@@ -2,6 +2,8 @@
 import { Response, ErrorResponse } from "../common/types.js";
 
 export type TaskStatusName = "neverCompleted" | "completed" | "upcoming" | "grace" | "overdue" | "inactive";
+export type FrequencyUnit = "day" | "month";
+export type FrequencyRef = "completion" | "dueDate";
 
 export interface PlannerDate {
     year: number;
@@ -21,7 +23,13 @@ export interface PlannerItemJson {
 export interface TaskJson extends PlannerItemJson {
     type: "task";
     id: number;
+    // `frequency` is the number of `frequencyUnit` after the last `frequencyRef`
+    // when the task will repeat. If `frequnecy is null, the task does not repeat.
     frequency: number | null;
+    // If `frequency` is non-null, the default value of `frequencyUnit` is "day".
+    frequencyUnit?: FrequencyUnit | null;
+    // If `frequency` is non-null, the default value of `frequencyRef` is "completion".
+    frequencyRef?: FrequencyRef | null;
     dueDate: PlannerDate | null;
     dueDateIsManual: boolean | null;
     upcomingPeriod: number | null;
@@ -43,7 +51,7 @@ export interface LocalStorageData {
 class ServerError extends Error {
     shortMessage: string;
     
-    constructor(message: string, shortMessage: string) {
+    constructor(message: string, shortMessage: string | null) {
         super(message);
         this.shortMessage = shortMessage;
     }

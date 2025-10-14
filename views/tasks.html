@@ -36,7 +36,17 @@
         </select>
     </p>
     <p id="editFrequencyRow">
-        Frequency: <input id="editFrequency" onblur="updateEditDueDate();" style="width: 80px;" /> days
+        Repeat:
+        <input id="editFrequency" onblur="updateEditDueDate();" style="width: 80px;" />
+        <select id="editFrequencyUnit" onchange="updateEditDueDate();">
+            <option value="day">days</option>
+            <option value="month">months</option>
+        </select>
+        after last
+        <select id="editFrequencyRef" onchange="updateEditDueDate(); updateManualContainer();">
+            <option value="completion">completion</option>
+            <option value="dueDate">due date</option>
+        </select>
     </p>
     <p id="editDueDateRow">
         <span id="editDueDateLabel"></span> <input id="editDueDate" type="date" style="margin-right: 15px;" />
