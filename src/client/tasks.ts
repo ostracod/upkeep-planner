@@ -25,7 +25,7 @@ interface CompletionJson {
 
 const newCategoryName = "New Category";
 const rootCategoryName = "Top Level";
-const pageIds = ["loadingScreen", "viewPlannerItems", "editTask", "viewTask"];
+const pageIds: PageId[] = ["loadingScreen", "viewPlannerItems", "editTask", "viewTask"];
 const secondsPerDay = 60 * 60 * 24;
 const monthAmount = 12;
 const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1205,6 +1205,8 @@ class Task extends PlannerItem {
             name: this.name,
             id: this.id,
             frequency: this.frequency,
+            frequencyUnit: this.frequencyUnit,
+            frequencyRef: this.frequencyRef,
             dueDate: (this.dueDate === null) ? null : { ...this.dueDate },
             dueDateIsManual: this.dueDateIsManual,
             upcomingPeriod: this.upcomingPeriod,
@@ -1682,11 +1684,12 @@ window.saveTask = (): void => {
     updateEditDueDate();
     const scheduleType = tag_scheduleType.value;
     let frequency: number | null = null;
+    let frequencyUnit: FrequencyUnit | null = null;
+    let frequencyRef: FrequencyRef | null = null;
     let dueDate: PlannerDate | null;
-    let dueDateIsManual: boolean | null;
+    let dueDateIsManual: boolean | null = null;
     if (scheduleType === "noDueDate") {
         dueDate = null;
-        dueDateIsManual = null;
     } else {
         if (scheduleType === "repeatingDueDate") {
             frequency = parseInt(tag_editFrequency.value, 10);
@@ -1695,7 +1698,11 @@ window.saveTask = (): void => {
                 tag_editFrequency.focus();
                 return;
             }
-            dueDateIsManual = tag_dueDateIsManual.checked;
+            frequencyUnit = tag_editFrequencyUnit.value as FrequencyUnit;
+            frequencyRef = tag_editFrequencyRef.value as FrequencyRef;
+            if (frequencyRef === "completion") {
+                dueDateIsManual = tag_dueDateIsManual.checked
+            }
         } else {
             dueDateIsManual = true;
         }
@@ -1739,6 +1746,8 @@ window.saveTask = (): void => {
             name,
             id,
             frequency,
+            frequencyUnit,
+            frequencyRef,
             dueDate,
             dueDateIsManual,
             upcomingPeriod,
@@ -1756,6 +1765,8 @@ window.saveTask = (): void => {
     } else {
         currentTask.setName(name);
         currentTask.frequency = frequency;
+        currentTask.frequencyUnit = frequencyUnit;
+        currentTask.frequencyRef = frequencyRef;
         currentTask.dueDate = dueDate;
         currentTask.dueDateIsManual = dueDateIsManual;
         currentTask.upcomingPeriod = upcomingPeriod;
