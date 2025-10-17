@@ -119,13 +119,17 @@ const subtractDates = (date1: PlannerDate, date2: PlannerDate): number => {
     return Math.round(timestampDelta / secondsPerDay);
 };
 
-const datesAreEqual = (date1: PlannerDate, date2: PlannerDate): boolean => (
-    date1.year === date2.year && date1.month === date2.month && date1.day === date2.day
-);
-
-const addDaysToDate = (date: PlannerDate, dayAmount: number): PlannerDate => {
-    const timestamp = convertDateToTimestamp(date);
-    return convertTimestampToDate(timestamp + secondsPerDay * dayAmount);
+const datesAreEqual = (date1: PlannerDate | null, date2: PlannerDate | null): boolean => {
+    const date2IsNull = (date2 === null);
+    if (date1 === null) {
+        return date2IsNull;
+    } else if (date2IsNull) {
+        return false;
+    } else {
+        return (date1.year === date2.year
+            && date1.month === date2.month
+            && date1.day === date2.day);
+    }
 };
 
 const createButtons = (
@@ -984,15 +988,12 @@ class Task extends PlannerItem {
         dueDateTag.style.display = displayStyle;
     }
     
-    // Should only be called if this.frequency is non-null
-    // and this.frequencyRef is "completion".
-    completionRefDueDate(): PlannerDate {
-        return completionRefDueDate(
-            this.frequency,
-            this.frequencyUnit,
-            this.activeMonths,
-            this.getLastCompletionDate(),
-        );
+    // Should only be called if this.frequency is non-null.
+    getNextDueDate(): PlannerDate {
+        const refDate = (this.frequencyRef === "completion")
+            ? this.getLastCompletionDate()
+            : this.dueDate;
+        return getNextDueDate(refDate, this.frequency, this.frequencyUnit, this.activeMonths);
     }
     
     checkDueDate(addedNewCompletion: boolean): void {
@@ -1004,37 +1005,31 @@ class Task extends PlannerItem {
         // completion OR the most recent completion is after the due date.
         const hasFinishedTask = (addedNewCompletion
             || (completionDate !== null && subtractDates(completionDate, this.dueDate) >= 0));
-        let dueDateHasChanged = false;
+        const lastDueDate = this.dueDate;
+        const lastIsManual = this.dueDateIsManual;
         if (this.frequency === null) {
             if (hasFinishedTask) {
                 this.dueDate = null;
                 this.dueDateIsManual = null;
-                dueDateHasChanged = true;
             }
         } else if (this.frequencyRef === "completion") {
             if (this.dueDateIsManual) {
                 if (hasFinishedTask) {
-                    this.dueDate = this.completionRefDueDate();
+                    this.dueDate = this.getNextDueDate();
                     this.dueDateIsManual = false;
-                    dueDateHasChanged = true;
                 }
             } else {
-                const nextDueDate = this.completionRefDueDate();
-                if (!datesAreEqual(this.dueDate, nextDueDate)) {
-                    this.dueDate = nextDueDate;
-                    dueDateHasChanged = true;
-                }
+                this.dueDate = this.getNextDueDate();
             }
         } else if (this.frequencyRef === "dueDate") {
             if (hasFinishedTask) {
-                // TODO: Advance due date by frequency.
-                
-                dueDateHasChanged = true;
+                this.dueDate = this.getNextDueDate();
             }
         } else {
             throw new Error(`Unknown frequency reference "${this.frequencyRef}".`);
         }
-        if (dueDateHasChanged) {
+        if (!datesAreEqual(lastDueDate, this.dueDate)
+                || lastIsManual !== this.dueDateIsManual) {
             this.handleDueDateChange();
             savePlannerItems();
         }
@@ -1109,7 +1104,7 @@ class Task extends PlannerItem {
     markAsComplete(): void {
         const lastDate = this.getLastCompletionDate();
         const currentDate = getCurrentDate();
-        if (lastDate === null || !datesAreEqual(currentDate, lastDate)) {
+        if (!datesAreEqual(currentDate, lastDate)) {
             const completion = new Completion(currentDate, false, "");
             this.addCompletion(completion);
         } else {
@@ -1562,44 +1557,75 @@ const handleScheduleTypeChange = (): void => {
 
 window.handleScheduleTypeChange = handleScheduleTypeChange;
 
+const increaseMonth = (
+    year: number,
+    month: number,
+    offset: number,
+): { year: number, month: number } => {
+    month += offset;
+    while (month > monthAmount) {
+        year += 1;
+        month -= monthAmount;
+    }
+    return { year, month };
+};
+
+const addDaysToDate = (date: PlannerDate, offset: number): PlannerDate => {
+    const timestamp = convertDateToTimestamp(date);
+    return convertTimestampToDate(timestamp + secondsPerDay * offset);
+};
+
+const addMonthsToDate = (date: PlannerDate, offset: number): PlannerDate => {
+    const { year, month } = increaseMonth(date.year, date.month, offset);
+    // Grumble grumble February grumble grumble Gregorian calendar...
+    const day = Math.min(date.day, 28);
+    return { year, month, day };
+};
+
+const addUnitsToDate = (
+    date: PlannerDate,
+    offset: number,
+    unit: FrequencyUnit,
+): PlannerDate => (
+    (unit === "day") ? addDaysToDate(date, offset) : addMonthsToDate(date, offset)
+);
+
 const dateIsInActiveMonth = (date: PlannerDate, activeMonths: boolean[] | null): boolean => (
     (activeMonths === null) ? true : activeMonths[date.month - 1]
 );
 
-const advanceDateMonth = (date: PlannerDate): PlannerDate => {
-    let { year } = date;
-    let month = date.month + 1;
-    if (month > monthAmount) {
-        year += 1;
-        month = 1;
+const skipInactiveMonth = (date: PlannerDate, unit: FrequencyUnit): PlannerDate => {
+    if (unit === "month") {
+        return addMonthsToDate(date, 1);
+    } else {
+        const { year, month } = increaseMonth(date.year, date.month, 1);
+        return { year, month, day: 1 };
     }
-    return { year, month, day: 1 };
 };
 
-const completionRefDueDate = (
+const getNextDueDate = (
+    refDate: PlannerDate | null,
     frequency: number,
     frequencyUnit: FrequencyUnit,
     activeMonths: boolean[] | null,
-    lastCompletionDate: PlannerDate | null,
 ): PlannerDate => {
-    if (lastCompletionDate === null) {
+    if (refDate === null) {
         return getCurrentDate();
     }
-    // TODO: Take frequencyUnit into account.
     if (activeMonths === null) {
-        return addDaysToDate(lastCompletionDate, frequency);
+        return addUnitsToDate(refDate, frequency, frequencyUnit);
     }
     if (activeMonths.every((monthIsActive) => !monthIsActive)) {
         return getCurrentDate();
     }
-    let date = lastCompletionDate;
+    let dueDate = refDate;
     for (let count = 0; count < frequency; count += 1) {
-        date = addDaysToDate(date, 1);
-        while (!dateIsInActiveMonth(date, activeMonths)) {
-            date = advanceDateMonth(date);
+        dueDate = addUnitsToDate(dueDate, 1, frequencyUnit);
+        while (!dateIsInActiveMonth(dueDate, activeMonths)) {
+            dueDate = skipInactiveMonth(dueDate, frequencyUnit);
         }
     }
-    return date;
+    return dueDate;
 };
 
 const updateEditDueDate = (): void => {
@@ -1621,7 +1647,7 @@ const updateEditDueDate = (): void => {
     const frequencyUnit = tag_editFrequencyUnit.value as FrequencyUnit;
     const activeMonths = getEditActiveMonths();
     const completionDate = currentTask?.getLastCompletionDate() ?? null;
-    const dueDate = completionRefDueDate(frequency, frequencyUnit, activeMonths, completionDate);
+    const dueDate = getNextDueDate(completionDate, frequency, frequencyUnit, activeMonths);
     tag_editDueDate.value = convertDateToString(dueDate);
 };
 
@@ -1994,7 +2020,7 @@ window.downloadJsonFile = async (): Promise<void> => {
 
 const timerEvent = (): void => {
     const currentDate = getCurrentDate();
-    if (lastTimerEventDate === null || !datesAreEqual(lastTimerEventDate, currentDate)) {
+    if (!datesAreEqual(lastTimerEventDate, currentDate)) {
         const tasks = getAllTasks();
         for (const task of tasks) {
             task.updateStatus();
