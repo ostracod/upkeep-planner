@@ -44,7 +44,7 @@ interface Account {
     keyVersion: number; // Increments by 1 each time the user changes their password.
     emailAddress: string;
     chunksVersion: number; // Increments by 1 each time the user modifies chunks.
-    taskFilter: string;
+    taskFilter?: string;
 }
 
 interface AccountJob {
@@ -499,7 +499,7 @@ expressApp.use((error, req, res, next) => {
     renderPage(res, "error.html", {}, params);
 });
 
-const shutdownServer = async (): Promise<void> => {
+const shutDownServer = async (): Promise<void> => {
     if (isShuttingDown) {
         return;
     }
@@ -524,8 +524,8 @@ const shutdownServer = async (): Promise<void> => {
     process.exit(0);
 };
 
-process.on("SIGTERM", shutdownServer);
-process.on("SIGINT", shutdownServer);
+process.on("SIGTERM", shutDownServer);
+process.on("SIGINT", shutDownServer);
 
 let server: Server;
 if (isDevMode) {

@@ -7,12 +7,14 @@
 //     > Up to completionFlushThreshold older completions
 // > "oldCompletions.<taskId>" stores the remaining CompletionJson[]
 //   of the task whose ID is <taskId>.
-// When the length of recentCompletions becomes too large, recent
-// completions are "flushed" to oldCompletions.<taskId>.
+// When the length of recentCompletions becomes too large, recent completions
+// are "flushed" to oldCompletions.<taskId>. This system has two benefits:
+// > It reduces the number of database operations.
+// > It obfuscates the time when the user performed each task.
 
 const ivLength = 16;
 
-const convertTextToBuffer = (text: string): ArrayBuffer  => {
+const convertTextToBuffer = (text: string): ArrayBuffer => {
     const textEncoder = new TextEncoder();
     return textEncoder.encode(text).buffer;
 };

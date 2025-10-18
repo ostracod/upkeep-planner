@@ -4,7 +4,7 @@ import { ContainerJson, PlannerItemJson, TaskJson, CategoryJson, LocalStorageDat
 import { getEncryptionKey, encryptChunk, decryptChunk } from "./chunk.js";
 
 let bcryptHash: (password: string, salt: string) => Promise<string>;
-let genBcryptSalt: (roundAmount: number) => string;
+let genBcryptSalt: (roundAmount: number) => Promise<string>;
 let isChangingPassword = false;
 let oldEncryptionKey: CryptoKey;
 let oldKeyVersion: number;
@@ -130,7 +130,7 @@ window.formSubmitEvent = async () => {
     }
     isChangingPassword = true;
     const messageTag = document.getElementById("message");
-    messageTag.innerHTML = "Changing password...";
+    messageTag.textContent = "Changing password...";
     try {
         await changePassword();
     } catch (error) {

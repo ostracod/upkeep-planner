@@ -47,7 +47,7 @@ window.formSubmitEvent = async (): Promise<void> => {
     }
     isLoggingIn = true;
     const messageTag = document.getElementById("message");
-    messageTag.innerHTML = "Logging in...";
+    messageTag.textContent = "Logging in...";
     try {
         await logIn();
     } catch (error) {

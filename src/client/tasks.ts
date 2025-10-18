@@ -55,7 +55,7 @@ let saveTimestamp: number | null = null;
 let keyHash: string;
 let keyVersion: number;
 let chunksVersion: number | null = null;
-let hasFault = false;
+let hasFault: boolean = false;
 let faultMessage: string | null = null;
 let shortFaultMessage: string | null = null;
 let encryptionKey: CryptoKey;
@@ -140,7 +140,7 @@ const createButtons = (
     const buttonTags: HTMLButtonElement[] = [];
     for (const buttonDef of buttonDefs) {
         const button = document.createElement("button");
-        button.innerHTML = buttonDef.text;
+        button.textContent = buttonDef.text;
         button.onclick = buttonDef.onClick;
         divTag.appendChild(button);
         buttonTags.push(button);
@@ -162,7 +162,7 @@ const updateSaveMessage = (): void => {
         saveMessage = "Saved all changes.";
     }
     const messageTag = document.getElementById("saveMessage");
-    messageTag.innerHTML = saveMessage;
+    messageTag.textContent = saveMessage;
     messageTag.style.color = color;
 }
 
@@ -215,14 +215,14 @@ const getChunks = async (
     names: string[],
     isSave = false,
 ): Promise<{ [name: string]: any }> => {
-    return await dispatchRequest<any>(isSave, async () => {
+    return await dispatchRequest<{ [name: string]: any }>(isSave, async () => {
         const body: GetChunksRequest = { keyVersion, names };
         if (chunksVersion !== null) {
             body.chunksVersion = chunksVersion;
         }
         const response = await makeRequest("/getChunks", body) as GetChunksResponse;
         chunksVersion = response.chunksVersion;
-        const output = {};
+        const output: { [name: string]: any } = {};
         for (const name of names) {
             const chunk = response.chunks[name];
             output[name] = (chunk === null) ? null : await decryptChunk(chunk, encryptionKey);
@@ -401,7 +401,7 @@ class Completion {
         this.rowTag.style.display = "flex";
         this.textTag = document.createElement("div");
         this.textTag.style.marginRight = "15px";
-        this.textTag.innerHTML = this.getDateString();
+        this.textTag.textContent = this.getDateString();
         this.rowTag.appendChild(this.textTag);
         const buttonsResult = createButtons([
             {
@@ -495,7 +495,7 @@ class Completion {
     
     updateNotesButton(): void {
         this.notesButton.style.display = (this.notes.length > 0) ? "" : "none";
-        this.notesButton.innerHTML = this.notesAreVisible ? "Hide Notes" : "Show Notes";
+        this.notesButton.textContent = this.notesAreVisible ? "Hide Notes" : "Show Notes";
     }
     
     setNotesVisibility(notesAreVisible: boolean): void {
@@ -535,7 +535,7 @@ class Completion {
         this.dateIsApproximate = this.editIsApproxTag.checked;
         this.notes = this.editNotesTag.value;
         this.hideEditTag();
-        this.textTag.innerHTML = this.getDateString();
+        this.textTag.textContent = this.getDateString();
         this.updateNotesButton();
         this.parentTask.handleCompletionsChange(false, true);
     }
@@ -705,7 +705,7 @@ abstract class PlannerItem {
     
     setName(name: string): void {
         this.name = name;
-        this.nameTag.innerHTML = name;
+        this.nameTag.textContent = name;
     }
     
     remove(): void {
@@ -856,7 +856,7 @@ class Task extends PlannerItem {
         const textTag = document.createElement("div");
         textTag.style.marginRight = "15px";
         this.nameTag = document.createElement("div");
-        this.nameTag.innerHTML = this.name;
+        this.nameTag.textContent = this.name;
         textTag.appendChild(this.nameTag);
         this.completionDateTag = document.createElement("div");
         textTag.appendChild(this.completionDateTag);
@@ -897,7 +897,7 @@ class Task extends PlannerItem {
             text = `Last completed on ${completion.getDateString()}`;
             displayStyle = "";
         }
-        this.completionDateTag.innerHTML = text;
+        this.completionDateTag.textContent = text;
         this.completionDateTag.style.display = displayStyle;
     }
     
@@ -911,7 +911,7 @@ class Task extends PlannerItem {
             text = `Due on ${convertDateToString(this.dueDate)}`;
             displayStyle = "";
         }
-        this.dueDateTag.innerHTML = text;
+        this.dueDateTag.textContent = text;
         this.dueDateTag.style.display = displayStyle;
     }
     
@@ -955,7 +955,7 @@ class Task extends PlannerItem {
         if (this.completions.length <= 0) {
             const placeholderTag = document.createElement("div");
             placeholderTag.className = "completion";
-            placeholderTag.innerHTML = "(None)";
+            placeholderTag.textContent = "(None)";
             completionsTag.appendChild(placeholderTag);
         } else {
             for (let index = this.completions.length - 1; index >= 0; index--) {
@@ -984,7 +984,7 @@ class Task extends PlannerItem {
             displayStyle = "";
         }
         const dueDateTag = document.getElementById("viewDueDate");
-        dueDateTag.innerHTML = dueDateText;
+        dueDateTag.textContent = dueDateText;
         dueDateTag.style.display = displayStyle;
     }
     
@@ -1241,7 +1241,7 @@ class Category extends PlannerItem {
         const rowTag = document.createElement("div");
         rowTag.className = "plannerItemRow";
         this.nameTag = document.createElement("div");
-        this.nameTag.innerHTML = this.name;
+        this.nameTag.textContent = this.name;
         this.nameTag.style.marginRight = "15px";
         this.nameTag.style.fontWeight = "bold";
         rowTag.appendChild(this.nameTag);
@@ -1437,7 +1437,7 @@ const showPage = (idToShow: PageId): void => {
 
 const showLoadingScreen = (message: string): void => {
     showPage("loadingScreen");
-    document.getElementById("loadMessage").innerHTML = message;
+    document.getElementById("loadMessage").textContent = message;
 };
 
 const updateCategoryOptions = (categoryToSelect: Category): void => {
@@ -1447,13 +1447,13 @@ const updateCategoryOptions = (categoryToSelect: Category): void => {
     tag_editParentCategory.innerHTML = "";
     const rootOptionTag = document.createElement("option");
     rootOptionTag.value = "-1";
-    rootOptionTag.innerHTML = rootCategoryName;
+    rootOptionTag.textContent = rootCategoryName;
     tag_editParentCategory.appendChild(rootOptionTag);
     for (let index = 0; index < allCategories.length; index++) {
         const category = allCategories[index];
         const optionTag = document.createElement("option");
         optionTag.value = `${index}`;
-        optionTag.innerHTML = category.name;
+        optionTag.textContent = category.name;
         tag_editParentCategory.appendChild(optionTag);
     }
     const parentIndex = allCategories.indexOf(categoryToSelect);
@@ -1550,7 +1550,7 @@ const handleScheduleTypeChange = (): void => {
     const isRepeating = (scheduleType === "repeatingDueDate");
     document.getElementById("editFrequencyRow").style.display = isRepeating ? "" : "none";
     document.getElementById("editDueDateRow").style.display = hasDueDate ? "" : "none";
-    document.getElementById("editDueDateLabel").innerHTML = isRepeating ? "Next due date:" : "Due date:";
+    document.getElementById("editDueDateLabel").textContent = isRepeating ? "Next due date:" : "Due date:";
     updateManualContainer();
     updateEditDueDate();
 };
@@ -1662,7 +1662,7 @@ const handleUpcomingPeriodChange = (): void => {
     } else {
         displayStyle = "none";
     }
-    document.getElementById("upcomingPeriodLabel").innerHTML = labelText;
+    document.getElementById("upcomingPeriodLabel").textContent = labelText;
     document.getElementById("editUpcomingContainer").style.display = displayStyle;
 };
 
@@ -1677,7 +1677,7 @@ const handleGracePeriodChange = (): void => {
     } else {
         displayStyle = "none";
     }
-    document.getElementById("gracePeriodLabel").innerHTML = labelText;
+    document.getElementById("gracePeriodLabel").textContent = labelText;
     document.getElementById("editGraceContainer").style.display = displayStyle;
 };
 
@@ -1844,7 +1844,7 @@ const viewTask = async (task: Task | null = null): Promise<void> => {
         await loadOldCompletions([currentTask]);
     }
     showPage("viewTask");
-    document.getElementById("viewTaskName").innerHTML = currentTask.name;
+    document.getElementById("viewTaskName").textContent = currentTask.name;
     currentTask.displayDueDate();
     const { upcomingPeriod, gracePeriod, activeMonths } = currentTask;
     let upcomingText: string;
@@ -1857,7 +1857,7 @@ const viewTask = async (task: Task | null = null): Promise<void> => {
         upcomingStyle = "";
     }
     const upcomingTag = document.getElementById("viewUpcomingPeriod");
-    upcomingTag.innerHTML = upcomingText;
+    upcomingTag.textContent = upcomingText;
     upcomingTag.style.display = upcomingStyle;
     let graceText: string;
     let graceStyle: string;
@@ -1869,7 +1869,7 @@ const viewTask = async (task: Task | null = null): Promise<void> => {
         graceStyle = "";
     }
     const graceTag = document.getElementById("viewGracePeriod");
-    graceTag.innerHTML = graceText;
+    graceTag.textContent = graceText;
     graceTag.style.display = graceStyle;
     let monthsText: string;
     let monthsStyle: string;
@@ -1889,11 +1889,11 @@ const viewTask = async (task: Task | null = null): Promise<void> => {
         monthsStyle = "";
     }
     const monthsTag = document.getElementById("viewActiveMonths");
-    monthsTag.innerHTML = monthsText;
+    monthsTag.textContent = monthsText;
     monthsTag.style.display = monthsStyle;
     const parentCategory = currentTask.getParentCategory();
     const parentName = (parentCategory === null) ? rootCategoryName : parentCategory.name;
-    document.getElementById("viewParentCategory").innerHTML = parentName;
+    document.getElementById("viewParentCategory").textContent = parentName;
     const notesTag = document.getElementById("viewTaskNotes") as HTMLParagraphElement;
     let notesStyle: string;
     if (currentTask.notes.length > 0) {
@@ -1969,7 +1969,7 @@ const updatePlannerItemsPlaceholder = (): void => {
         message = "No items match the selected filter.";
     }
     placeholderTag.style.display = (message === null) ? "none" : "block";
-    placeholderTag.innerHTML = message;
+    placeholderTag.textContent = message;
 };
 
 const clearTaskFilter = (): void => {
@@ -2105,7 +2105,7 @@ export const initializePage = async (): Promise<void> => {
     rootContainer = jsonToContainer(rootContainerTag, null, chunks.plannerItems);
     updatePlannerItemsPlaceholder();
     const tasks = getAllTasks();
-    const taskMap = new Map();
+    const taskMap = new Map<number, Task>();
     nextTaskId = 0;
     for (const task of tasks) {
         taskMap.set(task.id, task);
@@ -2114,7 +2114,7 @@ export const initializePage = async (): Promise<void> => {
         }
     }
     if (chunks.recentCompletions !== null) {
-        const completionsMap = new Map();
+        const completionsMap = new Map<number, Completion[]>();
         for (const completionData of (chunks.recentCompletions as CompletionJson[])) {
             const { taskId } = completionData;
             const completion = jsonToCompletion(completionData);

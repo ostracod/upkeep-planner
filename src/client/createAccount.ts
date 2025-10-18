@@ -3,7 +3,7 @@ import { CreateAccountRequest } from "../common/types.js";
 import { makeRequest } from "./global.js";
 
 let bcryptHash: (password: string, salt: string) => Promise<string>;
-let genBcryptSalt: (roundAmount: number) => string;
+let genBcryptSalt: (roundAmount: number) => Promise<string>;
 let isCreatingAccount = false;
 
 const createAccount = async (): Promise<void> => {
@@ -60,7 +60,7 @@ window.formSubmitEvent = async (): Promise<void> => {
     }
     isCreatingAccount = true;
     const messageTag = document.getElementById("message");
-    messageTag.innerHTML = "Creating account...";
+    messageTag.textContent = "Creating account...";
     try {
         await createAccount();
     } catch (error) {
