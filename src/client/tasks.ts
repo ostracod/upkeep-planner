@@ -1478,6 +1478,7 @@ const startTaskCreation = (parentCategory: Category | null = null): void => {
     tag_editDueDate.value = "";
     tag_dueDateIsManual.checked = false;
     tag_scheduleType.value = "noDueDate";
+    setAllActiveMonths(true);
     handleScheduleTypeChange();
     tag_hasUpcomingPeriod.checked = false;
     tag_editUpcomingPeriod.value = "";
@@ -1485,7 +1486,6 @@ const startTaskCreation = (parentCategory: Category | null = null): void => {
     tag_hasGracePeriod.checked = false;
     tag_editGracePeriod.value = "";
     handleGracePeriodChange();
-    setAllActiveMonths(true);
     updateCategoryOptions(parentCategory);
     tag_editTaskNotes.value = "";
 };
@@ -1511,6 +1511,15 @@ window.startTaskEdit = (): void => {
         scheduleType = "repeatingDueDate";
     }
     tag_scheduleType.value = scheduleType;
+    const { activeMonths } = currentTask;
+    if (activeMonths === null) {
+        setAllActiveMonths(true);
+    } else {
+        for (let index = 0; index < activeMonths.length; index++) {
+            const monthIsActive = activeMonths[index];
+            activeMonthCheckboxes[index].checked = monthIsActive;
+        }
+    }
     handleScheduleTypeChange();
     const { upcomingPeriod, gracePeriod } = currentTask;
     const hasUpcomingPeriod = (upcomingPeriod !== null);
@@ -1521,15 +1530,6 @@ window.startTaskEdit = (): void => {
     tag_hasGracePeriod.checked = hasGracePeriod;
     tag_editGracePeriod.value = hasGracePeriod ? `${gracePeriod}` : "";
     handleGracePeriodChange();
-    const { activeMonths } = currentTask;
-    if (activeMonths === null) {
-        setAllActiveMonths(true);
-    } else {
-        for (let index = 0; index < activeMonths.length; index++) {
-            const monthIsActive = activeMonths[index];
-            activeMonthCheckboxes[index].checked = monthIsActive;
-        }
-    }
     const parentCategory = currentTask.getParentCategory();
     updateCategoryOptions(parentCategory);
     tag_editTaskNotes.value = currentTask.notes;
